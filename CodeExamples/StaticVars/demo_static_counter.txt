@@ -1,0 +1,109 @@
+# build
+
+make clean; make
+
+# run
+
+$ bin/static_counter
+in f1: s15=55667788
+in f1: s15=55667789
+in f1: s15=5566778a
+in f1: s15=5566778b
+in f1: s15=5566778c
+in main: s15=5566778d
+
+# debug
+
+$ lldb bin/static_counter
+
+(lldb) target create "bin/static_counter"
+Current executable set to '/Users/franz/git_public_GdP1/CodeExamples/StaticVars/bin/static_counter' (arm64).
+
+(lldb) x/32xb &g
+0x100008000: 0x44 0x33 0x22 0x11 0x88 0x77 0x66 0x55
+0x100008008: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x100008010: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x100008018: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+==> Ahh:
+
+at 0x100008000 we recognize   g = 0x11223344
+at 0x100008004 we regognize s15 = 0x55667788
+
+The static local variable s15 is already initialized during the
+loader code of the process.
+Behold: we did not even  start the program!
+
+Therefore we learn:
+Static local variables are stored is the same data segment where
+initialized global variables are stored.
+
+
+(lldb) b main
+Breakpoint 1: where = static_counter`main + 16 at static_counter.c:15:11, address = 0x0000000100003f24
+
+(lldb) run
+Process 1825 launched: '/Users/franz/git_public_GdP1/CodeExamples/StaticVars/bin/static_counter' (arm64)
+Process 1825 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 1.1
+    frame #0: 0x0000000100003f24 static_counter` main  + 16 at static_counter.c:15
+   12  	}
+   13
+   14  	int main(void){
+-> 15  	  for(int j=0; j<5; j++){
+   16  	    f1();
+   17  	  }
+   18
+Target 0: (static_counter) stopped.
+
+(lldb) s
+Process 1825 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = step in
+    frame #0: 0x0000000100003f3c static_counter` main  + 40 at static_counter.c:16
+   13
+   14  	int main(void){
+   15  	  for(int j=0; j<5; j++){
+-> 16  	    f1();
+   17  	  }
+   18
+   19  	  //Accessing s15 from outside of f1() via name yields an error
+Target 0: (static_counter) stopped.
+(lldb) s
+Process 1825 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = step in
+    frame #0: 0x0000000100003ed4 static_counter` f1  + 36 at static_counter.c:9
+   6   	void f1(){
+   7   	  static int s15 = 0x55667788;
+   8
+-> 9   	  pi = &s15;
+   10  	  printf("in f1: s15=%x\n", *pi);
+   11  	  s15++;
+   12  	}
+Target 0: (static_counter) stopped.
+(lldb) s
+Process 1825 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = step in
+    frame #0: 0x0000000100003ed8 static_counter` f1  + 40 at static_counter.c:10
+   7   	  static int s15 = 0x55667788;
+   8
+   9   	  pi = &s15;
+-> 10  	  printf("in f1: s15=%x\n", *pi);
+   11  	  s15++;
+   12  	}
+   13
+Target 0: (static_counter) stopped.
+(lldb) p/x pi
+(int *) $1 = 0x0000000100008004
+(lldb) p/x *pi
+(int) $2 = 0x55667788
+
+(lldb) x/32xb &g
+0x100008000: 0x44 0x33 0x22 0x11 0x88 0x77 0x66 0x55
+0x100008008: 0x04 0x80 0x00 0x00 0x01 0x00 0x00 0x00
+0x100008010: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x100008018: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+(lldb) exit
+Quitting LLDB will kill one or more processes. Do you really want to proceed: [Y/n] y
+
+

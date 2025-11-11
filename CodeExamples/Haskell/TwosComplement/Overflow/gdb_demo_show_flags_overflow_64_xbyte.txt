@@ -1,0 +1,45 @@
+make clean; make
+
+gdb -q bin/overflow_64_4byte
+or
+gdb -q bin/overflow_64_8byte
+
+(gdb) break main
+(gdb) layout asm
+
+(gdb) run
+
+Do 'next instruction' (ni) until you reach the assembler instruction 'sub'
+
+(gdb) ni
+
+Execute the instruction 'sub'
+
+(gdb) ni
+
+Show the processors's status word
+
+(gdb) p $eflags
+$1 = [ PF ZF IF ]
+
+#--
+
+Do 'next instruction' (ni) until you reach the assembler instruction 'add'
+
+(gdb) ni
+
+Execute the instruction 'add'
+
+(gdb) ni
+
+Show the processors's status word
+
+(gdb) p $eflags
+$2 = [ CF PF ZF IF OF ]
+
+==> the flag 'OF' for arithmetic overflow is set !
+
+Quit the debugger
+
+Ctrl-d
+

@@ -1,0 +1,41 @@
+# -------------------------
+# Beispiel: gueltigkeit.c
+# -------------------------
+
+Zeigt schön, dass die Definition von lokalen Variablen nur Speicherplatz reserviert.
+Der Stack-Pointer wird einfach hochgezogen.
+
+Darum wird bei der ersten Anweisung
+
+  printf("b=%x\n",b);
+
+der Wert b=11223344 ausgegeben.
+
+Das ist der Wert von a aus first(), der noch auf dem Stack liegt.
+
+
+# -------------------------
+# Beispiel: nestedBlocks.c
+# -------------------------
+
+Zeigt, dass lokale Variablen erst ab der Zeile ihrer Deklaration sichtbar (zugreifbar)
+sind.
+
+Sie sind aber im ganzen Block gültig, in dem sie definiert werden.
+
+Der Compiler entscheidet, wann er den Speicherplatz für die Variablen eines
+inneren Block reserviert, und wann er ihn freigibt.
+
+Garantiert ist nur die Reservierung im Gültigkeitsbereich.
+
+Viele Compiler reservieren den Speicherplatz von Variablen aus inneren Blöcken jedoch
+gleich beim Betreten der Funktion und geben den Speicherpaltz erst wieder beim
+Verlassen der Funktion frei.
+
+# -------------------------
+# Beispiel: zaehler.c
+# -------------------------
+
+Hier wird die Wirkung von lokalen statischen Variablen gezeigt.
+
+

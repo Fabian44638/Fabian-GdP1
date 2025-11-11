@@ -1,0 +1,234 @@
+# Start
+#
+# Zwei Terminals.
+# In beiden Terminals:
+
+cd ~/git_public_GdP1/CodeExamples/Euklid-V05
+
+# Terminal 1: 75x10
+vim euklid.withRefParameters.c
+
+# Zeilennummer einschalten im Editor
+
+:set nummber
+
+# Terminal 2: 75x14
+
+make clean; make
+
+gdb -q bin/euklid.withRefParameters
+
+(gdb) break euklid.withRefParameters.c:60
+
+(gdb) run
+
+# -> Screenshot euklid.withRefParameters.c.gdbdemo.s1.png
+
+Bitte geben Sie zwei ganze Zahlen ein
+Bitte die erste  Zahl i1= 24
+Bitte die zweite Zahl i2= 9
+
+
+# Breakpoint euklid.withRefParameters.c:60
+# -> Screenshot euklid.withRefParameters.c.gdbdemo.s2.png
+
+# Terminal 1: Positioniere in Code-Zeile 60
+
+# Terminal 2: 
+# Ausgabe der Speicherbelegung: Stack-Frame main()
+# -> Screenshot euklid.withRefParameters.c.gdbdemo.s3.png
+
+(gdb) p /x $esp
+$3 = 0xbffff0c0
+(gdb) x /8wx 0xbffff0c0
+0xbffff0c0:	0xbffff100	0xb7fc3678	0x00000009	0x00000018
+0xbffff0d0:	0xbffff0f0	0xb7e1cff4	0x00000000	0xb7c232c5
+(gdb) p &i1
+$4 = (int *) 0xbffff0cc
+(gdb) p &i2
+$5 = (int *) 0xbffff0c8
+(gdb) p &theGGT
+$6 = (int *) 0xbffff0c4
+(gdb)
+
+
+# Terminal 1: Positioniere in Code-Zeile 91 ; ggT()
+
+# Terminal 2:
+# Breakpoint in Funktion ggT() setzen
+
+(gdb) break ggT
+
+# Fortsetzen bis zum Breakpoint in ggT()
+
+(gdb) cont
+
+# Ausgabe der aktuellen Argumente in Parametervariablen
+
+(gdb) p /x a
+$7 = 0x18
+(gdb) p /x b
+$8 = 0x9
+(gdb) p /x addr_result
+$9 = 0xbffff0c4
+
+# -> Screenshot euklid.withRefParameters.c.gdbdemo.s4.png
+
+# Terminal 1: Positioniere in Code-Zeile 102 ; ggT()
+
+# Terminal 2:
+# Konfiguriere fortlaufende Anzeige von a und b
+
+(gdb) display a
+1: a = 24
+(gdb) display b
+2: b = 9
+
+# Fortsetzung Code inkl. while-Schleife
+
+(gdb) next
+99	  if (a < 0) { a = -a; }
+1: a = 24
+2: b = 9
+(gdb) 
+100	  if (b < 0) { b = -b; }
+1: a = 24
+2: b = 9
+(gdb) 
+102	  while (a != b) {
+1: a = 24
+2: b = 9
+
+# -> Screenshot euklid.withRefParameters.c.gdbdemo.s5.png
+
+# while-Schleife bis zum Schluss ausführen.
+# Beachte Ausgabe der Variableninhalte a,b bei jedem Halt.
+
+(gdb) next      ('next' wiederholen per Eingabetaste)
+(gdb)
+...
+102	  while (a != b) {
+1: a = 3
+2: b = 3
+(gdb)
+109	  *addr_result = a;
+1: a = 3
+2: b = 3
+
+# -> Screenshot euklid.withRefParameters.c.gdbdemo.s6.png
+
+# Terminal 1: Positioniere in Code-Zeile 109 ; ggT()
+
+# Terminal 2:
+# Ausführung vor Code in Zeile 109
+#
+#  109	  *addr_result = a;
+
+# Ausgabe Inhalt von a, dem ggT(24,9)
+
+(gdb) p a
+$10 = 3
+
+# Ausgabe der Adresse, die in addr_result gespeichert ist
+
+(gdb) p /x addr_result
+
+$11 = 0xbffff0c4
+
+# Zeige, was an der Adresse gespeichert ist, die
+# im Parameter addr_result hinterlegt ist.
+# Das nennt man 'Dereferenz der Adresse'
+
+(gdb) p /x *addr_result
+
+12 = 0xb7fc3678
+
+# Ausführung der Zuweisung: *addr_result = a;
+
+(gdb) next
+
+# Nun erneut:
+# Zeige, was an der Adresse gespeichert ist, die
+# im Parameter addr_result hinterlegt ist.
+
+(gdb) p /x *addr_result
+$25 = 0x3
+
+# Ahh, nun ist das Resultat a auch in dem
+# Speicherobjekt hinterlegt, das an der Adresse
+# gespeichert ist, die in addr_result hinterlegt ist.
+
+# Und was liegt da nochmal?
+
+(gdb) p /x &(main::theGGT)
+$26 = 0xbffff0c4
+
+(gdb) p /x addr_result
+$27 = 0xbffff0c4
+
+
+# ==> die Funktion ggT() hat nun das Resultat
+#     in der Variable theGGT gespeichert,
+#     welche im Stack-Frame der Funktion main
+#     definiert ist
+
+# Frame info ausgaben (wo sind wir?)
+#
+# info frame
+# oder kurz
+# i f
+
+(gdb) i f
+Stack level 0, frame at 0xbffff0b0:
+ eip = 0x401319 in ggT (euklid.withRefParameters.c:112);
+    saved eip = 0x401275
+ called by frame at 0xbffff0f0
+ source language c.
+ Arglist at 0xbffff0a8, args: a=3, b=3, addr_result=0xbffff0c4
+ Locals at 0xbffff0a8, Previous frame's sp is 0xbffff0b0
+ Saved registers:
+  ebp at 0xbffff0a8, eip at 0xbffff0ac
+
+# -> Screenshot euklid.withRefParameters.c.gdbdemo.s7.png
+
+# Code in Zeile 112   return EXIT_SUCCESS;
+# ausführen und zum Aufrufer main() zurückkehren
+
+(gdb) next
+113	}
+1: a = 3
+2: b = 3
+(gdb) next
+main () at euklid.withRefParameters.c:67
+67	  printf ("\nDer größte gemeinsame ...
+
+# Terminal 1: Positioniere in Code-Zeile 67 ; main()
+
+# Terminal 2:
+#
+# Ausgabe des Inhalts der Variable theGGT
+
+(gdb) p theGGT
+$28 = 3
+
+# -> Screenshot euklid.withRefParameters.c.gdbdemo.s8.png
+
+# Terminal 1: Positioniere in Code-Zeile 75 ; main()
+
+# Terminal 2:
+# Programm bis zum Ende laufen lassen
+
+(gdb) cont
+Continuing.
+
+Der größte gemeinsame Teiler von 24 und 9 ist: 3
+[Inferior 1 (process 5431) exited normally]
+
+
+# -> Screenshot euklid.withRefParameters.c.gdbdemo.s9.png
+
+# Terminal 2:
+# Debugger verlassen
+
+(gdb) quit
+

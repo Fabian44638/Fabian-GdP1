@@ -1,0 +1,23 @@
+Reading symbols from bin/singleLinkedIntList_functional_tail_recursive_demo7...fertig.
+Dump of assembler code for function list_insert_end_deep_rec:
+   0x000007d0 <+0>:	push   %ebx
+   0x000007d1 <+1>:	sub    $0x8,%esp
+   0x000007d4 <+4>:	mov    0x10(%esp),%ebx
+   0x000007d8 <+8>:	mov    0x14(%esp),%eax
+   0x000007dc <+12>:	test   %ebx,%ebx
+   0x000007de <+14>:	jne    0x7f0 <list_insert_end_deep_rec+32>
+   0x000007e0 <+16>:	mov    %eax,0x10(%esp)
+   0x000007e4 <+20>:	add    $0x8,%esp
+   0x000007e7 <+23>:	pop    %ebx
+   0x000007e8 <+24>:	jmp    0x770 <list_create_node>
+   0x000007ea <+26>:	lea    0x0(%esi),%esi
+   0x000007f0 <+32>:	sub    $0x8,%esp
+   0x000007f3 <+35>:	push   %eax
+   0x000007f4 <+36>:	pushl  0x4(%ebx)
+   0x000007f7 <+39>:	call   0x7d0 <list_insert_end_deep_rec>
+   0x000007fc <+44>:	mov    %eax,0x4(%ebx)
+   0x000007ff <+47>:	add    $0x18,%esp
+   0x00000802 <+50>:	mov    %ebx,%eax
+   0x00000804 <+52>:	pop    %ebx
+   0x00000805 <+53>:	ret    
+End of assembler dump.

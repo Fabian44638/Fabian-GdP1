@@ -1,0 +1,32 @@
+Reading symbols from bin/singleLinkedIntList_functional_tail_recursive_demo7...fertig.
+Dump of assembler code for function list_insert_end_aux_V1:
+   0x00000000000009a0 <+0>:	test   %rdi,%rdi
+   0x00000000000009a3 <+3>:	je     0x9e8 <list_insert_end_aux_V1+72>
+   0x00000000000009a5 <+5>:	push   %rbp
+   0x00000000000009a6 <+6>:	push   %rbx
+   0x00000000000009a7 <+7>:	sub    $0x8,%rsp
+   0x00000000000009ab <+11>:	mov    0x8(%rdi),%rbx
+   0x00000000000009af <+15>:	test   %rbx,%rbx
+   0x00000000000009b2 <+18>:	jne    0x9c3 <list_insert_end_aux_V1+35>
+   0x00000000000009b4 <+20>:	jmp    0x9f0 <list_insert_end_aux_V1+80>
+   0x00000000000009b6 <+22>:	nopw   %cs:0x0(%rax,%rax,1)
+   0x00000000000009c0 <+32>:	mov    %rcx,%rbx
+   0x00000000000009c3 <+35>:	mov    0x8(%rbx),%rcx
+   0x00000000000009c7 <+39>:	test   %rcx,%rcx
+   0x00000000000009ca <+42>:	jne    0x9c0 <list_insert_end_aux_V1+32>
+   0x00000000000009cc <+44>:	mov    %esi,%edi
+   0x00000000000009ce <+46>:	mov    %rdx,%rbp
+   0x00000000000009d1 <+49>:	callq  0x920 <list_create_node>
+   0x00000000000009d6 <+54>:	mov    %rax,0x8(%rbx)
+   0x00000000000009da <+58>:	add    $0x8,%rsp
+   0x00000000000009de <+62>:	mov    %rbp,%rax
+   0x00000000000009e1 <+65>:	pop    %rbx
+   0x00000000000009e2 <+66>:	pop    %rbp
+   0x00000000000009e3 <+67>:	retq   
+   0x00000000000009e4 <+68>:	nopl   0x0(%rax)
+   0x00000000000009e8 <+72>:	mov    %esi,%edi
+   0x00000000000009ea <+74>:	jmpq   0x920 <list_create_node>
+   0x00000000000009ef <+79>:	nop
+   0x00000000000009f0 <+80>:	mov    %rdi,%rbx
+   0x00000000000009f3 <+83>:	jmp    0x9cc <list_insert_end_aux_V1+44>
+End of assembler dump.

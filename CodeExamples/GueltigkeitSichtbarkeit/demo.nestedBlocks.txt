@@ -1,0 +1,267 @@
+Terminal: 70x30
+
+Aufruf der Demo:
+
+gdbtui -q -x gdb.demo.nestedBlocks bin/nestedBlocks
+
+Im Debugger:
+
+# ----------------------------------------------------
+# ad Lebensdauer des äußeren und des inneren 'i':
+# ----------------------------------------------------
+
+- Wann wird Speicherplatz für die Variablen reserviert?
+  Wann wird er wieder freigegeben?
+
+Achtung:
+Compiler kann früher als nötig Speicherplatz reservieren
+und später als möglich Speicherplatz freigeben.
+  
+Umschalten in Full-Screen: Strg-x a
+
+Das Maschineprogramm befindet sich an Befehl main<+29> und hat
+bereits ein paar Register gesichert. 
+
+Aufgrund der ausgeführten Befehle können wir den Stack-Dump wie folgt annotieren.
+
+(gdb) stack_all32 
+-----------
+0xbffff0b0: 0xbffff0f0 Oberkante Stack nach <+15>:	sub    $0x10,%esp
+0xbffff0b4: 0xb7fc3678 Lokale Variable i im inneren Block (siehe <+125>)
+0xbffff0b8: 0xb7fc3b50 Lokale Variable k im äußeren Block
+0xbffff0bc: 0x00000001 Lokale Variable i im äußeren Block
+0xbffff0c0: 0xbffff0e0 Sicherung ecx
+0xbffff0c4: 0xb7e1cff4 Sicherung ebx
+0xbffff0c8: 0x00000000 <--- fp 0   Sicherung ebp
+-----------
+(gdb) p &i
+$1 = (int *) 0xbffff0bc
+(gdb) p &k
+$2 = (int *) 0xbffff0b8
+
+
+
+  disassemble /m main
+
+# Ausgabe
+
+Dump of assembler code for function main:
+4	int main () {
+   0x00401189 <+0>:	lea    0x4(%esp),%ecx
+   0x0040118d <+4>:	and    $0xfffffff0,%esp
+   0x00401190 <+7>:	push   -0x4(%ecx)
+   0x00401193 <+10>:	push   %ebp
+   0x00401194 <+11>:	mov    %esp,%ebp
+   0x00401196 <+13>:	push   %ebx
+   0x00401197 <+14>:	push   %ecx
+   0x00401198 <+15>:	sub    $0x10,%esp   <--- hier Reservierung für alle lok. Variablen
+   0x0040119b <+18>:	call   0x401090 <__x86.get_pc_thunk.bx>
+   0x004011a0 <+23>:	add    $0x2e54,%ebx
+
+5	  // local variables
+6	  int i,k;
+7
+8	  i =0x11223344;
+=> 0x004011a6 <+29>:	movl   $0x11223344,-0xc(%ebp)
+
+9	  k =0xaabbccdd;
+   0x004011ad <+36>:	movl   $0xaabbccdd,-0x10(%ebp)
+
+...
+
+24	      &i, i, &k, k);
+25
+26	  return EXIT_SUCCESS;
+   0x00401251 <+200>:	mov    $0x0,%eax
+
+27	}
+   0x00401256 <+205>:	lea    -0x8(%ebp),%esp   <--- hier Freigabe des Speicherplatzes für lok. Vars
+   0x00401259 <+208>:	pop    %ecx
+   0x0040125a <+209>:	pop    %ebx
+   0x0040125b <+210>:	pop    %ebp
+   0x0040125c <+211>:	lea    -0x4(%ecx),%esp
+   0x0040125f <+214>:	ret
+
+End of assembler dump.
+
+
+Also:
+Speicherplatz für das äußere und das innere i werden
+in diesem speziellen Fall gleich zu Beginn der Funktion
+main im Stack-Frame reserviert und erst ganz am Schluss
+mittels wieder freigegeben (siehe <+205>).   
+
+  Verlasse Full-Screen: Strg-x a
+
+# ----------------------------------------------------
+# ad Sichtbarkeit der lokalen Variablen
+# ----------------------------------------------------
+
+Achtung:
+Sichtbarkeit ist ein Konzept der Compile-Time!
+Nur weil wir mit Flag -g übersetzen, können wir zur Laufzeit
+im Debugger die Information über Sichtbarkeit zur Compile-Time
+überhaupt darstellen.
+
+Aufruf der Demo:
+
+gdbtui -q -x gdb.demo.nestedBlocks bin/nestedBlocks
+
+Im Debugger:
+
+- Welche Variable wird wann via Name 'i' angesprochen?
+  Nutze Befehl 'print &i'
+
+Programm im Einzelschritt ausführen
+
+GOHERE
+
+B+>      8    i =0x11223344;
+│        9    k =0xaabbccdd;
+│       10    printf("Outer block before inner block: &i=%p i = %x &k=%p k = %x\n",
+│       11        &i, i, &k, k);
+
+(gdb) stack_all32
+-----------
+0xbffff0b0: 0xbffff0f0
+0xbffff0b4: 0xb7fc3678
+0xbffff0b8: 0xb7fc3b50
+0xbffff0bc: 0x00000001 <- Variable i des äußeren Blocks
+0xbffff0c0: 0xbffff0e0 <- Variable k des äußeren Blocks
+0xbffff0c4: 0xb7e1cff4
+0xbffff0c8: 0x00000000 <--- fp 0
+-----------
+
+(gdb) p &i
+$1 = (int *) 0xbffff0bc
+(gdb) p &k
+$2 = (int *) 0xbffff0b8
+
+
+(gdb) next
+(gdb) next
+(gdb) next
+
+│       12    {
+│       13      // inner block
+│  >    14      k =0x11111111;
+│       15      i =0x33333333;
+│       16      printf("Inner block pre:  &i=%p i = %x &k=%p k = %x\n",
+│       17         &i, i, &k, k);
+│       18      int i;
+│       19      i =0x55667788;
+│       20      printf("Inner block post: &i=%p i = %x &k=%p k = %x\n",
+
+
+(gdb) print &i
+$4 = (int *) 0xbffff0fc   <--- !!! das ist schon die Adresse des inneren i
+
+(gdb) stackw
+-----------
+0xbffff0b0: 0xbffff0f0
+0xbffff0b4: 0xb7fc3678
+0xbffff0b8: 0xaabbccdd
+0xbffff0bc: 0x11223344
+0xbffff0c0: 0xbffff0e0
+0xbffff0c4: 0xb7e1cff4
+-----------
+
+Wir führen die beiden Zuweisungen des inneren Blocks aus
+│  >    14      k =0x11111111;
+│       15      i =0x33333333;
+
+(gdb) next
+(gdb) next
+
+(gdb) stackw
+-----------
+0xbffff0b0: 0xbffff0f0
+0xbffff0b4: 0xb7fc3678
+0xbffff0b8: 0x11111111
+0xbffff0bc: 0x33333333
+0xbffff0c0: 0xbffff0e0
+0xbffff0c4: 0xb7e1cff4
+-----------
+
+Wir sehen, dass die beiden Variablen des äußeren Blocks überschrieben wurden.
+Die Variable i des inneren Blocks ist noch nicht sichtbar.
+
+   │11        {                                                                 │
+   │12          // inner block                                                  │
+   │13          k =0x11111111;                                                  │
+   │14          i =0x33333333;                                                  │
+   │15          int i;                                                          │
+  >│16          i =0x55667788;                                                  │
+   │17          printf("Inner block: i = %x k = %x\n", i, k);                   │
+   │18        }                                                                 │
+
+
+Wir führen die nächste Anweisung i =0x55667788; aus
+
+  >│16          i =0x55667788;                                                  │
+   │17          printf("Inner block: i = %x k = %x\n", i, k);                   │
+
+(gdb) next
+
+    19      i =0x55667788;
+  > 20      printf("Inner block post:               &i=%p i = %x &k=%p k = %x\n",
+               &i, i, &k, k);
+
+(gdb) p &i
+
+$1 = (int *) 0xbffff0b4
+
+Nun ist die Variable des inneren Blocks sichtbar.i
+Ihr wurde der Wert 0x55667788 zugewiesen
+
+(gdb) stackw
+-----------
+0xbffff0b0: 0xbffff0f0
+0xbffff0b4: 0x55667788
+0xbffff0b8: 0x11111111
+0xbffff0bc: 0x33333333
+0xbffff0c0: 0xbffff0e0
+0xbffff0c4: 0xb7e1cff4
+-----------
+
+Wir verlassen den inneren Block
+
+(gdb) next
+
+│  >    23    printf("Outer block after inner block:  &i=%p i = %x &k=%p k = %x\n",
+│       24        &i, i, &k, k);
+│       25                     
+│       26    return EXIT_SUCCESS;
+│       27  }                    
+
+
+(gdb) p&i
+$3 = (int *) 0xbffff0bc  <--- das ist wieder die Adresse des äußeren i
+
+(gdb) stackw
+-----------
+0xbffff0b0: 0xbffff0f0
+0xbffff0b4: 0x55667788
+0xbffff0b8: 0x11111111
+0xbffff0bc: 0x33333333
+0xbffff0c0: 0xbffff0e0
+0xbffff0c4: 0xb7e1cff4
+-----------
+
+Wir sehen, dass an Adresse
+
+0xbffff0b4: 0x55667788
+
+noch der Wert des inneren i auf dem Stack liegt.
+
+Der Speicherplatz ides inneren i wurde auch noch nicht freigegeben.
+Hier verlängert der Compiler also die Lebensdauer über die durch
+den Gültigkeitsbereichi (das wäre nur der innere Block) vorgegeben Zeitspanne.
+Das ist laut C-Standard aber erlaubt.
+
+Wichtig ist, dass wir nach dem Verlassen des inneren Blocks über den Variablennamen i
+nicht mehr an das i des inneren Block herankommen.
+Das innere i ist nach dem Verlassen des inneren Blocks nicht mehr sichtbar.
+
+Session mit Strg-d verlassen
+

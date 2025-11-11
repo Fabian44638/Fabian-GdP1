@@ -1,0 +1,102 @@
+Terminal: 70x30
+
+Aufruf der Demo:
+
+gdbtui -q -x gdb.demo.gueltigkeit bin/gueltigkeit
+
+Im Debugger:
+
+       17                         
+       18  int main () {          
+B+>    19    first();             
+       20    second();            
+       21    return EXIT_SUCCESS; 
+       22  }                      
+
+(gdb) step
+(gdb) step
+
+        4  void first(){         
+        5    int a;              
+        6    a = 0x11223344;     
+  >     7    printf("a=%x\n",a); 
+        8  }                     
+        9                        
+
+(gdb) stack_all32
+
+-----------
+0xbffff0b0: 0xbffff0f0
+0xbffff0b4: 0xb7fc3678
+0xbffff0b8: 0xb7fc3b50
+0xbffff0bc: 0x11223344
+0xbffff0c0: 0x00000001
+0xbffff0c4: 0xb7e1cff4
+0xbffff0c8: 0xbffff0d8 <--- fp 0
+0xbffff0cc: 0x00401230
+0xbffff0d0: 0x00000000
+0xbffff0d4: 0x00000070
+0xbffff0d8: 0x00000000 <--- fp 1
+
+(gdb) print &a
+$1 = (int *) 0xbffff0bc
+(gdb) print /x a
+$2 = 0x11223344
+
+(gdb) finish
+Run till exit from #0  first () at gueltigkeit.c:7
+main () at gueltigkeit.c:20
+
+(gdb) step
+second () at gueltigkeit.c:12
+
+
+       10  void second(){
+       11    int b;
+  >    12    printf("%zd\n", sizeof(b));
+       13    printf("b=%x\n",b);  // was wird hier ausgegeben?
+       14    b = 0x55667788;
+       15    printf("b=%x\n",b);
+       16  }
+
+(gdb) stack_all32
+-----------
+0xbffff0b0: 0xbffff0f0
+0xbffff0b4: 0xb7fc3678
+0xbffff0b8: 0xb7fc3b50
+0xbffff0bc: 0x11223344
+0xbffff0c0: 0x00000001
+0xbffff0c4: 0xb7e1cff4
+0xbffff0c8: 0xbffff0d8 <--- fp 0
+0xbffff0cc: 0x00401235
+0xbffff0d0: 0x00000000
+0xbffff0d4: 0x00000070
+0xbffff0d8: 0x00000000 <--- fp 1
+-----------
+
+(gdb) print &b
+$3 = (int *) 0xbffff0bc
+
+(gdb) print /x b
+$4 = 0x11223344
+
+Uhhh!
+Der Parameter b der Funktion second() liegt im Stack genau
+dort, wo beim vorherigen Aufruf von first() der Parameter a
+lag.
+
+Darum wird beim Aufruf 
+    13    printf("b=%x\n",b);
+der Wert 0x11223344 ausgegeben.
+        
+
+Erst nach der zu spät erfolgenden Zuweisung an b wird dann
+auch der korrekte Wert 0x55667788 ausgegeben.
+
+    14    b = 0x55667788;
+    15    printf("b=%x\n",b);
+
+
+Session mit Strg-d verlassen
+(gdb) step
+

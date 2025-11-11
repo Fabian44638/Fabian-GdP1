@@ -1,0 +1,15 @@
+# Main entry for demo Readme.demo.auto
+
+source gdb.stackdump
+
+break main
+break factorial
+winheight src 7
+run 4
+
+set_bfp
+
+define hook-stop
+        stack_all32
+end
+

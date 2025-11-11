@@ -1,0 +1,526 @@
+Demo: show stack frames in LLDB for example swap-V1
+===================================================
+
+Runs on CISC machines x64 Intel/AMD
+or   on RISC ARM platforms like raspberry Pi, Apple M1/M2).
+
+# ----------------------------------------------------------
+# Build
+# ----------------------------------------------------------
+
+cd ~/git_public_GdP1
+git pull
+
+cd ~/git_public_GdP1/CodeExamples/Stack
+make clean; make
+
+# ----------------------------------------------------------
+# Start debugger in a terminal
+# ----------------------------------------------------------
+# Size 80x20
+
+lldb bin/swap-V1 
+
+# Notes:
+#
+# Note 1:
+# The command script lldb_stackutils.py is imported via ~/.lldbinit
+#
+# Note 2:
+# Due to setting 'target.skip-prologue true' we may simply set
+# breakpoints at the first instruction after the function's prologue by
+#    breakpoint set -n <function name>
+# or even shorter
+#
+##   b <function name>
+
+#----------------------------------
+# Demo 1: C-Source
+#----------------------------------
+
+(lldb) list main
+
+(lldb) b main
+
+# Run the program
+
+(lldb) run
+
+# The program stops at the breakpoint
+
+Process 5908 launched: '/home/regensbu/git_public_GdP1/CodeExamples/Stack/bin/swap-V1' (x86_64)
+Process 5908 stopped
+* thread #1, name = 'swap-V1', stop reason = breakpoint 1.1
+    frame #0: 0x00005555555546b1 swap-V1` main  + 8 at swap-V1.c:21
+   18  	int main() {
+   19  	    int i1,i2;
+   20  	
+-> 21  	    i1=0x11223344;
+   22  	    i2=0x55667788;
+   23  	
+   24  	    swap(i1,i2);
+(lldb)
+
+# * execute the program line by line in single steps relative to source code.
+# * enter function swap
+# * execute all statements of function swap
+# * return from function swap
+#
+# Hint 1:
+#
+# next: single step one line of source code without stepping into functions
+#       'next' (or 'n') is an abbreviation for 'thread step-over'
+#
+# step: single step one line of source code with stepping into functions
+#       'step' (or 's') is an abbreviation for 'thread step-in'
+#
+# finish: finish executing the current stack frame and stop after returning.
+#       'finish' (not 'f') is an abbreviation for 'thread step-out'
+#
+#      f: the single letter 'f' is an abreviation for command 'process status'
+#         that prints the current line in the source code with 3 lines before
+#         and after the current line as a context
+#
+# Hint 2: you may start a GUI via command gui as well.
+# However, this is overkill in our case.
+#
+# (lldb) gui
+
+# Hint 3: show content of variables along the debugging tour
+#
+# show content of variable a in hex notation
+# (lldb) p/x a
+#
+# show content of all variables belonging to the current frame
+# (lldb) frame variable -f x
+
+(lldb) step
+(lldb) s
+or simply
+(lldb) <enter> will execute last command once more
+...
+
+Process 5908 stopped
+* thread #1, name = 'swap-V1', stop reason = step in
+    frame #0: 0x00005555555546ce swap-V1` main  + 37 at swap-V1.c:26
+   23
+   24  	    swap(i1,i2);
+   25
+-> 26  	    printf("After swap\n");
+   27  	    printf("i1: %x\n",i1);
+   28  	    printf("i2: %x\n",i2);
+   29
+
+# Continue until the end
+
+(lldb) cont  or simply 'c'
+
+# The programs produces output and terminates
+
+Process 5908 resuming
+After swap
+i1: 11223344
+i2: 55667788
+Process 5908 exited with status = 0 (0x00000000) 
+
+#--------------------------------------------------------------------
+# Demo 2: Display assembler code with annotated C and/or machine code
+#--------------------------------------------------------------------
+# Terminal 85x32
+
+# Hints about options
+# Set disassembly flavor
+# -F   att: AT&T flavor  (unix, default)
+# -F intel: Intel flavor (windows)
+#
+# Show machine code
+# -b
+#
+# Mixed mode assembler and C code
+# -m 
+
+# Show assembler code disassembled from machine of loaded target
+#
+# disassemble -n <function name>
+# di -n <function name>
+
+(lldb) disassemble -n main
+(lldb) di -n main
+
+swap-V1`main:
+0x5555555546a9 <+0>:  pushq  %rbp
+0x5555555546aa <+1>:  movq   %rsp, %rbp
+0x5555555546ad <+4>:  subq   $0x10, %rsp
+0x5555555546b1 <+8>:  movl   $0x11223344, -0x8(%rbp)   ; imm = 0x11223344
+0x5555555546b8 <+15>: movl   $0x55667788, -0x4(%rbp)   ; imm = 0x55667788
+0x5555555546bf <+22>: movl   -0x4(%rbp), %edx
+0x5555555546c2 <+25>: movl   -0x8(%rbp), %eax
+0x5555555546c5 <+28>: movl   %edx, %esi
+0x5555555546c7 <+30>: movl   %eax, %edi
+0x5555555546c9 <+32>: callq  0x68a                     ; swap at swap-V1.c:12
+0x5555555546ce <+37>: leaq   0xbf(%rip), %rdi
+0x5555555546d5 <+44>: callq  0x550                     ; symbol stub for: puts
+0x5555555546da <+49>: movl   -0x8(%rbp), %eax
+0x5555555546dd <+52>: movl   %eax, %esi
+0x5555555546df <+54>: leaq   0xb9(%rip), %rdi
+0x5555555546e6 <+61>: movl   $0x0, %eax
+0x5555555546eb <+66>: callq  0x560                     ; symbol stub for: printf
+0x5555555546f0 <+71>: movl   -0x4(%rbp), %eax
+0x5555555546f3 <+74>: movl   %eax, %esi
+0x5555555546f5 <+76>: leaq   0xab(%rip), %rdi
+0x5555555546fc <+83>: movl   $0x0, %eax
+0x555555554701 <+88>: callq  0x560                     ; symbol stub for: printf
+0x555555554706 <+93>: movl   $0x0, %eax
+0x55555555470b <+98>: leave
+0x55555555470c <+99>: retq
+
+# Show mixed mode: assembler and C
+
+(lldb) di -n main -m
+
+** 18  	int main() {
+
+swap-V1`main:
+0x5555555546a9 <+0>:  pushq  %rbp
+0x5555555546aa <+1>:  movq   %rsp, %rbp
+0x5555555546ad <+4>:  subq   $0x10, %rsp
+
+   19  	    int i1,i2;
+   20  	
+** 21  	    i1=0x11223344;
+
+0x5555555546b1 <+8>:  movl   $0x11223344, -0x8(%rbp)   ; imm = 0x11223344 
+
+** 22  	    i2=0x55667788;
+   23  	
+
+0x5555555546b8 <+15>: movl   $0x55667788, -0x4(%rbp)   ; imm = 0x55667788 
+
+** 24  	    swap(i1,i2);
+   25  	
+
+0x5555555546bf <+22>: movl   -0x4(%rbp), %edx
+0x5555555546c2 <+25>: movl   -0x8(%rbp), %eax
+0x5555555546c5 <+28>: movl   %edx, %esi
+0x5555555546c7 <+30>: movl   %eax, %edi
+0x5555555546c9 <+32>: callq  0x68a                     ; swap at swap-V1.c:12
+
+** 26  	    printf("After swap\n");
+
+0x5555555546ce <+37>: leaq   0xbf(%rip), %rdi
+0x5555555546d5 <+44>: callq  0x550                     ; symbol stub for: puts
+
+** 27  	    printf("i1: %x\n",i1);
+
+0x5555555546da <+49>: movl   -0x8(%rbp), %eax
+0x5555555546dd <+52>: movl   %eax, %esi
+0x5555555546df <+54>: leaq   0xb9(%rip), %rdi
+0x5555555546e6 <+61>: movl   $0x0, %eax
+0x5555555546eb <+66>: callq  0x560                     ; symbol stub for: printf
+
+** 28  	    printf("i2: %x\n",i2);
+   29  	
+
+0x5555555546f0 <+71>: movl   -0x4(%rbp), %eax
+0x5555555546f3 <+74>: movl   %eax, %esi
+0x5555555546f5 <+76>: leaq   0xab(%rip), %rdi
+0x5555555546fc <+83>: movl   $0x0, %eax
+0x555555554701 <+88>: callq  0x560                     ; symbol stub for: printf
+
+** 30  	    return 0;
+
+0x555555554706 <+93>: movl   $0x0, %eax
+
+** 31  	}
+
+0x55555555470b <+98>: leave  
+0x55555555470c <+99>: retq 
+
+#----------
+# Show a hex dump of the machine code of function main
+
+x/100xb main
+
+#>
+0x5555555546a9: 0x55 0x48 0x89 0xe5 0x48 0x83 0xec 0x10
+0x5555555546b1: 0xc7 0x45 0xf8 0x44 0x33 0x22 0x11 0xc7
+0x5555555546b9: 0x45 0xfc 0x88 0x77 0x66 0x55 0x8b 0x55
+0x5555555546c1: 0xfc 0x8b 0x45 0xf8 0x89 0xd6 0x89 0xc7
+0x5555555546c9: 0xe8 0xbc 0xff 0xff 0xff 0x48 0x8d 0x3d
+0x5555555546d1: 0xbf 0x00 0x00 0x00 0xe8 0x76 0xfe 0xff
+0x5555555546d9: 0xff 0x8b 0x45 0xf8 0x89 0xc6 0x48 0x8d
+0x5555555546e1: 0x3d 0xb9 0x00 0x00 0x00 0xb8 0x00 0x00
+0x5555555546e9: 0x00 0x00 0xe8 0x70 0xfe 0xff 0xff 0x8b
+0x5555555546f1: 0x45 0xfc 0x89 0xc6 0x48 0x8d 0x3d 0xab
+0x5555555546f9: 0x00 0x00 0x00 0xb8 0x00 0x00 0x00 0x00
+0x555555554701: 0xe8 0x5a 0xfe 0xff 0xff 0xb8 0x00 0x00
+0x555555554709: 0x00 0x00 0xc9 0xc3
+
+# Alternatively we use the disassembler utility by Derek Selander
+#
+# Note: the program must be running (raw input)
+
+(lldb) run
+
+Process 5950 stopped
+* thread #1, name = 'swap-V1', stop reason = breakpoint 1.1
+    frame #0: 0x00005555555546b1 swap-V1` main  + 8 at swap-V1.c:21
+   18  	int main() {
+   19  	    int i1,i2;
+   20
+-> 21  	    i1=0x11223344;
+   22  	    i2=0x55667788;
+   23
+   24  	    swap(i1,i2);
+
+
+(lldb) dd main
+swap-V1, main
+    0    0x5555555546a9 <+0>:    pushq %rbp
+    1    0x5555555546aa <+1>:    movq  %rsp,  %rbp
+    2    0x5555555546ad <+4>:    subq  $0x10,  %rsp
+->  3    0x5555555546b1 <+8>:    movl  $0x11223344,  -0x8(%rbp) imm = 0x11223344
+    4    0x5555555546b8 <+15>:   movl  $0x55667788,  -0x4(%rbp) imm = 0x55667788
+    5    0x5555555546bf <+22>:   movl  -0x4(%rbp),  %edx
+    6    0x5555555546c2 <+25>:   movl  -0x8(%rbp),  %eax
+    7    0x5555555546c5 <+28>:   movl  %edx,  %esi
+    8    0x5555555546c7 <+30>:   movl  %eax,  %edi
+   *9    0x5555555546c9 <+32>:   callq 0x55555555468a  ; swap
+    10   0x5555555546ce <+37>:   leaq  0xbf(%rip),  %rdi
+   *11   0x5555555546d5 <+44>:   callq 0x555555554550  ; puts
+    12   0x5555555546da <+49>:   movl  -0x8(%rbp),  %eax
+    13   0x5555555546dd <+52>:   movl  %eax,  %esi
+    14   0x5555555546df <+54>:   leaq  0xb9(%rip),  %rdi
+    15   0x5555555546e6 <+61>:   movl  $0x0,  %eax
+   *16   0x5555555546eb <+66>:   callq 0x555555554560  ; printf
+    17   0x5555555546f0 <+71>:   movl  -0x4(%rbp),  %eax
+    18   0x5555555546f3 <+74>:   movl  %eax,  %esi
+    19   0x5555555546f5 <+76>:   leaq  0xab(%rip),  %rdi
+    20   0x5555555546fc <+83>:   movl  $0x0,  %eax
+   *21   0x555555554701 <+88>:   callq 0x555555554560  ; printf
+    22   0x555555554706 <+93>:   movl  $0x0,  %eax
+    23   0x55555555470b <+98>:   leave
+   *24   0x55555555470c <+99>:   retq
+
+#-------------------------------------------------------
+# Demo 3: Stepwise execute the program with stack dumps
+#-------------------------------------------------------
+
+# Set breakpoints in functions main and swap
+# where breakpoints should be located 'after' the prelude.
+#
+# See setting 'target.skip-prologue true'
+
+(lldb) b main
+(lldb) b swap
+
+# Show list of breakpoints
+#  breakpoint list
+# Delete breakpoints
+#  breakpoint delete 1
+# Help: help breakpoint
+
+
+(lldb) run
+
+Process 5959 stopped
+* thread #1, name = 'swap-V1', stop reason = breakpoint 1.1
+    frame #0: 0x00005555555546b1 swap-V1` main  + 8 at swap-V1.c:21
+   18  	int main() {
+   19  	    int i1,i2;
+   20
+-> 21  	    i1=0x11223344;
+   22  	    i2=0x55667788;
+   23
+   24  	    swap(i1,i2);
+
+# Dump contents of the entire call stack
+(lldb) stack_all 
+
+7fffffffdda0: 90 de ff ff ff 7f 00 00
+7fffffffdda8: 00 00 00 00 00 00 00 00
+7fffffffddb0: 10 47 55 55 55 55 00 00  <-- fp of frame #0: main
+
+# Show addresses of local variables i1 and i2
+(lldb) p/x &i1
+(int *) $3 = 0x00007fffffffdda8
+
+(lldb) p/x &i2
+(int *) $4 = 0x00007fffffffddac
+
+# Execute assignements to i1 and i2 doing two consecutive 's' commands
+
+(lldb) s
+(lldb) s
+
+# Dump the stack again
+(lldb) stack_all
+
+7fffffffdda0: 90 de ff ff ff 7f 00 00
+7fffffffdda8: 44 33 22 11 88 77 66 55
+7fffffffddb0: 10 47 55 55 55 55 00 00  <-- fp of frame #0: main
+
+# Print content of variables i1 and i2
+
+# Either via
+
+(lldb) fr v -f x i1 i2
+(int) i1 = 0x11223344
+(int) i2 = 0x55667788
+
+# or
+(lldb) p/x i1 
+(int) $5 = 0x11223344
+(lldb) p/x i2
+(int) $6 = 0x55667788
+
+# Raw dump of the frame from top of stack downwards for 32 byte (hex)
+
+(lldb) x/32xb $rsp
+0x7fffffffdda0: 0x90 0xde 0xff 0xff 0xff 0x7f 0x00 0x00
+0x7fffffffdda8: 0x44 0x33 0x22 0x11 0x88 0x77 0x66 0x55
+0x7fffffffddb0: 0x10 0x47 0x55 0x55 0x55 0x55 0x00 0x00
+0x7fffffffddb8: 0x87 0x3c 0xa0 0xf7 0xff 0x7f 0x00 0x00
+
+# Show current halting position with context
+# Either via
+#     process status
+# or shorter via 'f'
+
+(lldb) f
+Process 3555 stopped
+* thread #1, name = 'swap-V1', stop reason = step in
+    frame #0: 0x00005555555546bf swap-V1` main  + 22 at swap-V1.c:24
+   21  	    i1=0x11223344;
+   22  	    i2=0x55667788;
+   23
+-> 24  	    swap(i1,i2);
+   25
+   26  	    printf("After swap\n");
+   27  	    printf("i1: %x\n",i1);
+
+#
+# Step into function swap
+# Either via cont 'c' or via a single step 's'
+
+(lldb) s
+Process 5959 stopped
+* thread #1, name = 'swap-V1', stop reason = breakpoint 2.1
+    frame #0: 0x0000555555554694 swap-V1` swap(a=287454020, b=1432778632)  + 10 at swap-V1.c:13
+   10  	#include <stdio.h>
+   11
+   12  	void swap(int a, int b) {
+-> 13  	    int tmp = a;
+   14  	    a = b;
+   15  	    b = tmp;
+   16  	}
+
+#
+# Show contents of frame pointer and stack pointer (registers rbp and rsp)
+#
+
+(lldb) register read rbp rsp
+     rbp = 0x00007fffffffdd90
+     rsp = 0x00007fffffffdd90
+
+# Uupsi: rbp == rsp !?
+#
+# Explanation:
+# Code generated for CISC X64 uses the so called FASTCALL ABI
+# * for leave functions, storage for local variables is not reserved
+#   via stack pointer. There are 256 bytes (red zone) reserved automatically
+#   per calling convention FASTCALL ABI.
+
+# Show contents of local variables and parameters of current frame
+# - with additional information
+# - using hex format
+
+(lldb) frame variable -f x -L -c
+
+swap-V1.c:12: 0x00007fffffffdd7c: (int) a = 0x11223344
+swap-V1.c:12: 0x00007fffffffdd78: (int) b = 0x55667788
+swap-V1.c:13: 0x00007fffffffdd8c: (int) tmp = 0x00000000
+
+# Dump the entire call stack using utility function 'stack_all'
+# imported from lldb_stackutils.py
+
+(lldb) stack_all
+
+Attention: x64 ABI red zone of leaf frame #0:
+
+7fffffffdd78: 88 77 66 55 44 33 22 11
+7fffffffdd80: 40 3b de f7 ff 7f 00 00
+7fffffffdd88: 00 00 00 00 00 00 00 00
+7fffffffdd90: b0 dd ff ff ff 7f 00 00  <-- fp of frame #0
+7fffffffdd98: ce 46 55 55 55 55 00 00
+7fffffffdda0: 90 de ff ff ff 7f 00 00
+7fffffffdda8: 44 33 22 11 88 77 66 55
+7fffffffddb0: 10 47 55 55 55 55 00 00  <-- fp of frame #1: main
+
+# Q: Where are the local vars of swapV1?
+# A: Above the rsp in the red zone of the leaf frame (according to x64 ABI)
+
+# Disassemble function of current frame
+# With utility 'dd' by Derek Salander loaded
+# 
+
+swap-V1, swap
+    0    0x55555555468a <+0>:    pushq %rbp
+    1    0x55555555468b <+1>:    movq  %rsp,  %rbp
+    2    0x55555555468e <+4>:    movl  %edi,  -0x14(%rbp)
+    3    0x555555554691 <+7>:    movl  %esi,  -0x18(%rbp)
+->  4    0x555555554694 <+10>:   movl  -0x14(%rbp),  %eax
+    5    0x555555554697 <+13>:   movl  %eax,  -0x4(%rbp)
+    6    0x55555555469a <+16>:   movl  -0x18(%rbp),  %eax
+    7    0x55555555469d <+19>:   movl  %eax,  -0x14(%rbp)
+    8    0x5555555546a0 <+22>:   movl  -0x4(%rbp),  %eax
+    9    0x5555555546a3 <+25>:   movl  %eax,  -0x18(%rbp)
+    10   0x5555555546a6 <+28>:   nop
+    11   0x5555555546a7 <+29>:   popq  %rbp
+   *12   0x5555555546a8 <+30>:   retq
+
+# or use the builtin command 'disassemble' or 'di' for short
+
+(lldb) di
+swap-V1`swap:
+    0x55555555468a <+0>:  pushq  %rbp
+    0x55555555468b <+1>:  movq   %rsp, %rbp
+    0x55555555468e <+4>:  movl   %edi, -0x14(%rbp)
+    0x555555554691 <+7>:  movl   %esi, -0x18(%rbp)
+->  0x555555554694 <+10>: movl   -0x14(%rbp), %eax
+    0x555555554697 <+13>: movl   %eax, -0x4(%rbp)
+    0x55555555469a <+16>: movl   -0x18(%rbp), %eax
+    0x55555555469d <+19>: movl   %eax, -0x14(%rbp)
+    0x5555555546a0 <+22>: movl   -0x4(%rbp), %eax
+    0x5555555546a3 <+25>: movl   %eax, -0x18(%rbp)
+    0x5555555546a6 <+28>: nop
+    0x5555555546a7 <+29>: popq   %rbp
+    0x5555555546a8 <+30>: retq
+
+#
+# Note:
+# 
+# During the prolog of the function swap, the parameters
+# stored in the registers edi and esi are stored (via movl)
+# in the stack (red zone).
+#
+#  * save the frame pointer via pushq
+
+    0x55555555468a <+0>:  pushq  %rbp
+
+#  * assign rbp = rsp
+
+    0x55555555468b <+1>:  movq   %rsp, %rbp
+
+#  * move parameters stored in registers onto the stack above rsp!
+#    No 'push' is used on X64
+
+    0x55555555468e <+4>:  movl   %edi, -0x14(%rbp)
+    0x555555554691 <+7>:  movl   %esi, -0x18(%rbp)
+
+# This implements the FASTCALL ABI for Intel x64
+# For leave functions (functions at the top of the call stack)
+# the memory region above the stackpointer
+#    ]sp, sp + 256]
+# is called the 'red zone' of the top most stack frame
+

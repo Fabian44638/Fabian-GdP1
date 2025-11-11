@@ -1,0 +1,191 @@
+# ===========================================================
+# Tail-Call Optimization durch den Compiler gcc
+# ===========================================================
+ 
+# -----------------
+# Ausgangsversion:
+# -----------------
+# ~/GdPI/CodeExamples/TailCallOptimization/fac.c
+# 
+# Eine bekannte rekursive Implementierung der Fakultätsfunktion.
+
+int fac(int n){
+   int res;
+
+  if (n == 0){
+    res = 1;
+  } else {
+    res = n * fac(n-1);
+  }
+  return res;
+}
+
+# -------------------------
+# Variante 1: itfac1.c
+# -------------------------
+# 
+# Variante 1 mit endständig rekursiver (tail recursive) Hilfsfunktion.
+
+int fac(int n){
+  return itfac(n,1);
+}
+
+int itfac(int n, int acc){
+  int res;
+
+  if (n == 0) {
+      res = acc;
+    } else {
+      res = itfac(n-1, n*acc); // tail-recursive call
+    }
+
+  return res;
+}
+
+# -------------------------
+# Variante 2: itfac2.c
+# -------------------------
+# 
+# Variante 2 mit endständig rekursiver (tail recursive) Hilfsfunktion.
+# Optimierung der Verzweigungsbedingung erlaubt Reduktion auf einen Zweig.
+
+int itfac(int n, int acc){
+  if (n != 0) {
+      acc = itfac(n-1, n*acc); // tail-recursive call
+  }
+  return acc;
+}
+
+
+# -------------------------
+# Variante 3: itfac3.c
+# -------------------------
+# 
+# Iterativer Code in expliziter while-Schleife.
+
+int itfac(int n, int acc){
+  while (n != 0){
+    acc = n*acc;
+    n = n-1;
+  }
+  return acc;
+}
+
+# ------------------------------------
+# Code-Optimierung durch den Compiler
+# ------------------------------------
+
+gcc -O0
+* liefert für alle 3 Varianten unterschiedlichen Assemblercode:
+  - bin/itfac1 und bin/itfac2 enthalten rekursive Aufrufe
+  - bin/itfac3 enthält eine Schleife im Assemblercode
+
+gcc -O2 
+* liefert für alle 3 Varianten den identischen Assemblercode,
+  welcher eine effiziente Schleife (tight loop) kodiert.
+
+  Aus der man-page von gcc
+  -foptimize-sibling-calls
+      Optimize sibling and tail recursive calls.
+      Enabled at levels -O2, -O3, -Os.
+
+# -----------------------------
+# Build mit Compiler-Flag -O0
+# -----------------------------
+
+make clean; make CFLAGS_ADD="-O0"
+
+#>
+...
+gcc  -g -Wall -O0 fac.c -o bin/fac
+gcc  -g -Wall -O0 itfac1.c -o bin/itfac1
+gcc  -g -Wall -O0 itfac2.c -o bin/itfac2
+gcc  -g -Wall -O0 itfac3.c -o bin/itfac3
+
+gdb -q bin/fac    -ex "disassemble fac"   -ex "quit" > fac1.disass
+gdb -q bin/itfac1 -ex "disassemble itfac" -ex "quit" > itfac1.disass
+gdb -q bin/itfac2 -ex "disassemble itfac" -ex "quit" > itfac2.disass
+gdb -q bin/itfac3 -ex "disassemble itfac" -ex "quit" > itfac3.disass
+
+# Welche Varianten enthalten (noch) rekursive Aufrufe?
+
+grep call *.disass | grep -v get_pc_thunk
+
+# Vergleiche Ausgabe des Assembler-Codes in den *.disass Dateien
+# in verschiedenen Fenstern oder mittels diff.
+# ==> Der Compiler hat für alle drei Varianten der Funktion itfac
+#     eine unterschiedlichen Assembler-Code erzeugt!
+
+diff itfac1.disass itfac2.disass
+
+diff itfac2.disass itfac3.disass
+
+
+# -----------------------------
+# Build mit Compiler-Flag -O2
+# -----------------------------
+
+make clean; make CFLAGS_ADD="-O2"
+
+#>
+...
+gcc  -g -Wall -O2 fac.c -o bin/fac 
+gcc  -g -Wall -O2 itfac1.c -o bin/itfac1 
+gcc  -g -Wall -O2 itfac2.c -o bin/itfac2 
+gcc  -g -Wall -O2 itfac3.c -o bin/itfac3 
+
+gdb -q bin/fac    -ex "disassemble fac"   -ex "quit" > fac1.disass
+gdb -q bin/itfac1 -ex "disassemble itfac" -ex "quit" > itfac1.disass
+gdb -q bin/itfac2 -ex "disassemble itfac" -ex "quit" > itfac2.disass
+gdb -q bin/itfac3 -ex "disassemble itfac" -ex "quit" > itfac3.disass
+
+
+# Welche Varianten enthalten (noch) rekursive Aufrufe?
+# ==> keine
+
+grep call *.disass
+
+# Vergleiche Ausgabe des Assembler-Codes in den *.disass Dateien
+# in verschiedenen Fenstern oder mittels diff.
+# ==> Der Compiler hat für alle drei Varianten der Funktion itfac
+#     den gleichen Assembler-Code erzeugt!
+
+diff itfac1.disass itfac2.disass
+
+diff itfac2.disass itfac3.disass
+
+
+# ---------------------------------
+# Fazit
+# ---------------------------------
+
+Es ist adäquat, tail-rekursive Funktionen als 'iterativ' zu bezeichnen.
+
+Die Technik der Tail Call Optimization (TCO) wurde bereits in den 70er Jahren
+im Kontext von funktionalen Sprachen (Lisp, Scheme) eingesetzt.
+In den 80er Jahren wurden diese Technik auch für konventionelle Sprachen
+wie C, C++ und andere kompilierte Sprachen wie Scala übernommen.
+
+Siehe https://en.wikipedia.org/wiki/Tail_call
+
+Nota Bene:
+Der Java-Compiler darf keine TCO durchführen, weil laut
+Sprachstandard von Java keine Optimierungen erlaubt sind,
+die Stack-Frames hinzufügen oder entfernen :-}
+
+Und übrigens:
+Bei Verwendung des Datentyps int (4 Byte mit Vorzeichen) kommt es
+bereits für n=13 zu einem arithmetischen Überlauf.
+
+13! = 6227020800
+
+aber
+
+bin/itfac1 13
+
+#>
+fac(13)=1932053504
+
+Bei Verwendung des Datentyps unsigned long long int (8 Byte ohne Vorzeichen)
+erhalten wir 'erst' für n=21 einen arithmetischen Überlauf.
+

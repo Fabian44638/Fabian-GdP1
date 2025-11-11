@@ -1,0 +1,32 @@
+Reading symbols from bin/singleLinkedIntList_functional_tail_recursive_demo7...fertig.
+Dump of assembler code for function list_insert_end_iter:
+   0x000008c0 <+0>:	push   %esi
+   0x000008c1 <+1>:	push   %ebx
+   0x000008c2 <+2>:	sub    $0x4,%esp
+   0x000008c5 <+5>:	mov    0x10(%esp),%esi
+   0x000008c9 <+9>:	mov    0x14(%esp),%edx
+   0x000008cd <+13>:	test   %esi,%esi
+   0x000008cf <+15>:	mov    %esi,%ebx
+   0x000008d1 <+17>:	jne    0x8da <list_insert_end_iter+26>
+   0x000008d3 <+19>:	jmp    0x8f8 <list_insert_end_iter+56>
+   0x000008d5 <+21>:	lea    0x0(%esi),%esi
+   0x000008d8 <+24>:	mov    %eax,%ebx
+   0x000008da <+26>:	mov    0x4(%ebx),%eax
+   0x000008dd <+29>:	test   %eax,%eax
+   0x000008df <+31>:	jne    0x8d8 <list_insert_end_iter+24>
+   0x000008e1 <+33>:	sub    $0xc,%esp
+   0x000008e4 <+36>:	push   %edx
+   0x000008e5 <+37>:	call   0x770 <list_create_node>
+   0x000008ea <+42>:	mov    %eax,0x4(%ebx)
+   0x000008ed <+45>:	add    $0x14,%esp
+   0x000008f0 <+48>:	mov    %esi,%eax
+   0x000008f2 <+50>:	pop    %ebx
+   0x000008f3 <+51>:	pop    %esi
+   0x000008f4 <+52>:	ret    
+   0x000008f5 <+53>:	lea    0x0(%esi),%esi
+   0x000008f8 <+56>:	mov    %edx,0x10(%esp)
+   0x000008fc <+60>:	add    $0x4,%esp
+   0x000008ff <+63>:	pop    %ebx
+   0x00000900 <+64>:	pop    %esi
+   0x00000901 <+65>:	jmp    0x770 <list_create_node>
+End of assembler dump.

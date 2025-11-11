@@ -1,0 +1,41 @@
+# -----------------------------------------------
+# Crafting an attack by buffer overflow
+# -----------------------------------------------
+# Disable ASLR protection for the current session
+# Note: this creates a security risk for the current login session!!!
+#  echo 0 | sudo tee /proc/sys/kernel/randomize_va_space
+#
+# Enable ASLR again
+#  echo 1 | sudo tee /proc/sys/kernel/randomize_va_space
+#
+# Compile helloFakedReturn.c with additional gcc options:
+#   -Wno-array-bounds -fno-stack-protector -fomit-frame-pointer
+
+
+FABR Q: is it possible to remove the PIE flag from the compiled binary
+        as we successfully demonstrated for MacOS ventura?
+
+A: probably not, since ASLR is a kernel feature on linux
+
+
+https://stackoverflow.com/questions/33080909/how-to-disable-address-randomization-aslr-from-an-elf-file
+
+ASLR is part of the kernel state. Chaning it for mmap-ing a particular shared
+object does not make any sense, but, as Employed Russian answered, you could
+disable it with 'setarch -R' for a process and its future child processes
+(perhaps your parent shell and all its children).
+
+man setarch
+or
+https://man7.org/linux/man-pages/man8/setarch.8.html
+
+==> FABR: check the option hacking an already running process
+    Probably the shell that you will use to start the targeted binary.
+
+And look out for the user 'Employed Russian' on Stackoverflow.
+
+He also contributed the info about MacOS Ventura....
+
+https://stackoverflow.com/users/50617/employed-russian
+
+

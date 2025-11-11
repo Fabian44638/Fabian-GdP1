@@ -1,0 +1,14 @@
+See
+
+https://en.wikipedia.org/wiki/Exponent_bias
+
+for an explanation of the purpose of the so called biased exponent.
+
+#---
+
+See
+
+https://en.wikipedia.org/wiki/IEEE_754
+
+for an introduction to the definition of the IEEE 754 floating point format.
+
