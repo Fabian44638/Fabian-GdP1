@@ -1,0 +1,20 @@
+Anwenderhinweise:
+Während das Spiel läuft kann der Wurm über die nachfolgende Tastenbelegung gesteuert werden. Der Kopf des Wurms ist rot markiert.
+Wenn der Wurm die Ränder des Fensters erreicht wird das Spiel beendet. Ebenso, wenn die Taste q gedrückt wird.
+Wenn sich der Wurm selbst überschneidet hat das keine Auswirkungen auf den Spielverlauf.
+
+Tastenbelegung:
+    Pfeiltaste AUF - Bewegung aufwärts
+    Pfeiltaste AB - Bewegung abwärts
+    Pfeiltaste LINKS - Bewegung nach links
+    Pfeiltaste RECHTS - Bewegung nach rechts
+
+    1 - Bewegung nach links oben
+    2 - Bewegung nach rechts oben
+    3 - Bewegung nach rechts unten
+    4 - Bewegung nach links Unten
+
+    s - schaltet Single Step ein
+    Leertaste - schalte Single Step aus
+    
+    q - beendet das Spiel
