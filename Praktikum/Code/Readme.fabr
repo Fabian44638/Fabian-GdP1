@@ -1,0 +1,12 @@
+
+Neuheiten in dieser Version:
+
+    - Einrichtung einer weißen Hintergrundfarbe im Spielfenster.
+    - Der Kopf des Wurms wird rot dargestellt.
+    - Kopf und Schwanz des Wurms werden durch ein "X" dargestellt.
+    - Der Körper des Wurms wird durch "O" dargestellt.
+    - Der Wurm ist nicht mehr endlos.
+    - Die Länge des Wurms kann über eine Variable vorgegeben werden.
+    - Beim Abbruch des Spiels wird der Grund für den Spielabbruch angegeben.
+    - Die Datenstruktur wurde verbessert.
+
