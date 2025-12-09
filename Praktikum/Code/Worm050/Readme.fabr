@@ -1,0 +1,8 @@
+
+Neuerungen:
+    - Einführung der Datenstrucktur zur zentralen Verwaltung aller Wurmdaten
+    - Entfernen globaler Wurm-Variablen und Übergabe des Wurms als lokale Struktur an Funktionen
+    - Anpassung aller Wurm-Funktionen an die neue Strukturverwendung
+    - Ergänzung einer Nachrichtenanzeige für Status- und Fehlmeldungen
+    - Erweiterung von Spieleinstellungen wie Spielfeldgröße, Symbole und Farben
+    - Anpassung der Wurmdarstellung mit getrennten Symbolen für Kopf, Körper und Schwanz
