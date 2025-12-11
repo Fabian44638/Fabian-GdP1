@@ -1,0 +1,9 @@
+
+Neuerungen:
+
+    - Einführung eines festen Spielbretts als zweidimensionales Feld zur Speicherung aller Inhalte
+    - Ergänzung von Hindernissen und Futterbrocken auf dem Spielfeld
+    - Erweiterung der Spiellogik um Kollisionen mit Spielfeldobjekten zu verarbeiten
+    - Einbau einer Wachstumsfunktion für den Wurm abhängig von gefressenen Futterbrocken
+    - Erweiterung von Spieleinstellungen wie Spielfeldgröße, Symbole und Farben
+    - Anpassung der Wurmdarstellung mit getrennten Symbolen für den Kopf und den Körper
